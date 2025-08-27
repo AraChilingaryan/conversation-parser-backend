@@ -1,4 +1,155 @@
-export * from './conversation.interface';
-// export * from './audio.interface';
-// export * from './api.interface';
-// export * from './config.interface';
+// src/interfaces/index.ts
+
+// ============================================================================
+// CONVERSATION INTERFACES
+// ============================================================================
+export type {
+    ConversationMetadata,
+    AudioFormat,
+    Speaker,
+    SpeakerCharacteristics,
+    Message,
+    MessageType,
+    MessageAlternative,
+    ConversationInsights,
+    ConversationFlow,
+    SpeakingTimeDistribution,
+    ConversationSentiment,
+    ConversationData,
+    ConversationStatus,
+    ProcessingLogEntry,
+    ProcessingStage,
+    AudioProcessingConfig,
+    SpeechToTextConfig,
+    DiarizationConfig,
+    ParsingConfig,
+    OutputConfig,
+    UploadConversationRequest,
+    UploadConversationResponse,
+    ConversationStatusResponse,
+    ProcessingProgress,
+    ProcessingError,
+    ConversationSummary,
+    ConversationSearchParams,
+    ConversationListResponse
+} from './conversation.interface';
+
+// ============================================================================
+// AUDIO INTERFACES
+// ============================================================================
+export type {
+    AudioFile,
+    AudioEncoding,
+    AudioMetadata,
+    AudioValidationConfig,
+    AudioValidationResult,
+    AudioValidationError,
+    AudioValidationWarning,
+    AudioValidationErrorCode,
+    AudioValidationWarningCode,
+    SpeechToTextRequest,
+    SpeechRecognitionConfig,
+    SpeechContext,
+    SpeakerDiarizationConfig,
+    RecognitionModel,
+    SpeechToTextResponse,
+    SpeechRecognitionResult,
+    SpeechRecognitionAlternative,
+    WordInfo,
+    DiarizationResult,
+    SpeakerSegment,
+    SpeakerProfile,
+    AudioProcessingPipeline,
+    ProcessingStep,
+    ProcessingStepStatus,
+    ProcessingStepError,
+    StorageConfig,
+    StorageLifecycleConfig,
+    StoredAudioFile,
+    StorageUploadResult,
+    AudioPreprocessingConfig,
+    PreprocessingResult,
+    PreprocessingChange,
+    AudioAnalysisResult,
+    SilenceSegment,
+    SpeechSegment,
+    AudioQualityAssessment,
+    AudioQualityIssue
+} from './audio.interface';
+
+// ============================================================================
+// CONFIGURATION INTERFACES
+// ============================================================================
+export type {
+    AppConfig,
+    ServerConfig,
+    Environment,
+    RateLimitConfig,
+    DatabaseConfig,
+    FirebaseConfig,
+    PostgreSQLConfig,
+    MongoDBConfig,
+    AppStorageConfig,
+    StorageProvider,
+    AppStorageLifecycleConfig,
+    StorageCredentials,
+    SpeechToTextServiceConfig,
+    SpeechProvider,
+    GoogleSpeechConfig,
+    AWSTranscribeConfig,
+    AzureSpeechConfig,
+    OpenAISpeechConfig,
+    RetryPolicyConfig,
+    AppProcessingConfig,
+    QueueConfig,
+    AppValidationConfig,
+    AppAudioValidationConfig,
+    PreprocessingConfig,
+    PostprocessingConfig,
+    SecurityConfig,
+    AuthenticationConfig,
+    OAuthProvider,
+    AuthorizationConfig,
+    EncryptionConfig,
+    APISecurityConfig,
+    LoggingConfig,
+    LogLevel,
+    LogFormat,
+    LogDestination,
+    LogRotationConfig,
+    MonitoringConfig,
+    MetricsConfig,
+    HealthCheckConfig,
+    HealthCheck,
+    AlertConfig,
+    AlertChannel,
+    AlertRule,
+    AlertCondition,
+    AlertSeverity,
+    TracingConfig,
+    FeatureFlagsConfig,
+    FeatureFlag,
+    CacheConfig,
+    CacheStrategy,
+    AppWebhookConfig,
+    AppWebhookEndpoint,
+    AppWebhookEvent,
+    BackupConfig,
+    ExtendedRateLimitConfig,
+    RateLimitStrategy
+} from './config.interface';
+
+// ============================================================================
+// API INTERFACES
+// ============================================================================
+export type {
+    APIResponse,
+    APIError,
+    ResponseMetadata,
+    RateLimitInfo,
+    PaginationParams,
+    PaginatedResponse,
+    HealthCheckResponse,
+    ServiceHealthStatus,
+    ServiceStatus
+} from './api.interface';
