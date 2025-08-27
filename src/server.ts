@@ -7,6 +7,7 @@ import { config } from 'dotenv';
 import { healthRoutes } from './routes';
 import { errorHandler, notFoundHandler } from './middleware';
 import { logger } from './utils/logger.util';
+import { databaseService } from './services/database.service';
 
 // Load environment variables
 config();
@@ -55,27 +56,44 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 // Start server
-const server = app.listen(PORT, () => {
-    logger.info(`🚀 Conversation Parser Backend started on port ${PORT}`);
-    logger.info(`📱 Environment: ${process.env['NODE_ENV'] || 'development'}`);
-    logger.info(`🌐 Health check: http://localhost:${PORT}/health`);
-});
+async function startServer() {
+    try {
+        // Initialize database service FIRST
+        logger.info('Initializing database service...');
+        await databaseService.initialize();
+        logger.info('Database service initialized successfully');
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-    logger.info('SIGTERM received, shutting down gracefully');
-    server.close(() => {
-        logger.info('Process terminated');
-        process.exit(0);
-    });
-});
+        // THEN start the HTTP server
+        const server = app.listen(PORT, () => {
+            logger.info(`🚀 Conversation Parser Backend started on port ${PORT}`);
+            logger.info(`📱 Environment: ${process.env['NODE_ENV'] || 'development'}`);
+            logger.info(`🌐 Health check: http://localhost:${PORT}/health`);
+        });
 
-process.on('SIGINT', () => {
-    logger.info('SIGINT received, shutting down gracefully');
-    server.close(() => {
-        logger.info('Process terminated');
-        process.exit(0);
-    });
-});
+        // Graceful shutdown (move this inside startServer)
+        process.on('SIGTERM', () => {
+            logger.info('SIGTERM received, shutting down gracefully');
+            server.close(() => {
+                logger.info('Process terminated');
+                process.exit(0);
+            });
+        });
+
+        process.on('SIGINT', () => {
+            logger.info('SIGINT received, shutting down gracefully');
+            server.close(() => {
+                logger.info('Process terminated');
+                process.exit(0);
+            });
+        });
+
+    } catch (error) {
+        logger.error('Failed to start server:', error);
+        process.exit(1);
+    }
+}
+
+// Replace your current server.listen() call with:
+startServer();
 
 export default app;
