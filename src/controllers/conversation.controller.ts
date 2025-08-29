@@ -341,6 +341,32 @@ export const listConversations = async (req: Request, res: Response): Promise<vo
     }
 };
 
+// Reset conversation status for retry
+export const resetConversationStatus = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { conversationId } = req.params;
+
+        await databaseService.conversations.updateStatus(conversationId, 'uploaded');
+
+        res.json({
+            success: true,
+            data: {
+                conversationId,
+                status: 'uploaded',
+                message: 'Conversation status reset to uploaded'
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: {
+                code: 'RESET_FAILED',
+                message: 'Failed to reset conversation status'
+            }
+        });
+    }
+};
+
 // Helper functions
 function getAudioFormat(mimeType: string): 'wav' | 'mp3' | 'm4a' | 'webm' | 'ogg' | 'mpeg' {
     const mimeToFormat: Record<string, 'wav' | 'mp3' | 'm4a' | 'webm' | 'ogg' | 'mpeg'> = {

@@ -138,15 +138,18 @@ export type RecognitionModel =
     | 'video'
     | 'default'
     | 'medical_conversation'
-    | 'medical_dictation';
+    | 'medical_dictation'
+    | 'latest_long'
+    | 'latest_short'
+    | string;
 
 // ============================================================================
 // SPEECH-TO-TEXT RESPONSE INTERFACES
 // ============================================================================
 
 export interface SpeechToTextResponse {
-    results: SpeechRecognitionResult[];
-    totalBilledTime?: number; // seconds
+    results: any[];
+    totalBilledTime: number;
     requestId?: string;
 }
 
