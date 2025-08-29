@@ -85,14 +85,16 @@ export type AudioValidationErrorCode =
     | 'CORRUPTED_FILE'
     | 'NO_AUDIO_CONTENT'
     | 'SAMPLE_RATE_TOO_LOW'
-    | 'TOO_MANY_CHANNELS';
+    | 'TOO_MANY_CHANNELS'
+    | 'VALIDATION_ERROR';
 
 export type AudioValidationWarningCode =
     | 'LOW_SAMPLE_RATE'
     | 'MONO_AUDIO'
     | 'COMPRESSED_FORMAT'
     | 'UNUSUAL_DURATION'
-    | 'LARGE_FILE_SIZE';
+    | 'LARGE_FILE_SIZE'
+    | 'LONG_DURATION';
 
 // ============================================================================
 // SPEECH-TO-TEXT SERVICE INTERFACES

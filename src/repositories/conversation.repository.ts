@@ -406,9 +406,30 @@ export class ConversationRepository extends BaseFirestoreRepository<Conversation
      * Override retrieval transformation for conversations
      */
     protected override transformFromStorage(data: Record<string, any>): ConversationData {
-        const transformed = super.transformFromStorage(data);
+        // Convert Firestore timestamps to ISO strings
+        const convertTimestamps = (obj: any): any => {
+            if (obj && typeof obj === 'object') {
+                if (obj._seconds && obj._nanoseconds) {
+                    // This is a Firestore timestamp
+                    return new Date(obj._seconds * 1000 + obj._nanoseconds / 1000000).toISOString();
+                }
 
-        // Ensure all required fields have default values
+                // Recursively convert nested objects
+                for (const key in obj) {
+                    if (obj[key] && typeof obj[key] === 'object') {
+                        obj[key] = convertTimestamps(obj[key]);
+                    }
+                }
+            }
+            return obj;
+        };
+
+        const converted = convertTimestamps({ ...data });
+
+        // Call parent transform
+        const transformed = super.transformFromStorage(converted);
+
+        // Ensure required fields exist
         return {
             ...transformed,
             speakers: transformed.speakers || [],
@@ -420,7 +441,7 @@ export class ConversationRepository extends BaseFirestoreRepository<Conversation
                 responseCount: 0,
                 statementCount: 0,
                 averageMessageLength: 0,
-                longestMessage: {messageId: '', length: 0},
+                longestMessage: { messageId: '', length: 0 },
                 conversationFlow: 'unknown',
                 speakingTimeDistribution: [],
             },
