@@ -8,6 +8,8 @@ import { healthRoutes } from './routes';
 import { errorHandler, notFoundHandler } from './middleware';
 import { logger } from './utils/logger.util';
 import { databaseService } from './services/database.service';
+import { conversationRoutes } from './routes/conversation.routes';
+import { handleUploadError } from './middleware/upload.middleware';
 
 // Load environment variables
 config();
@@ -37,7 +39,10 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Routes
+// Routes - SPECIFIC routes must come BEFORE general routes
 app.use('/health', healthRoutes);
+app.use('/api/v1/conversations', conversationRoutes);
+
 app.use('/api/v1', (req, res) => {
     res.json({
         message: 'Conversation Parser API v1',
@@ -51,7 +56,7 @@ app.use('/api/v1', (req, res) => {
     });
 });
 
-// Error handling
+app.use(handleUploadError);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
