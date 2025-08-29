@@ -6,7 +6,7 @@ import {
     uploadConversation,
     getConversation,
     getConversationStatus,
-    listConversations
+    listConversations, resetConversationStatus
 } from '../controllers/conversation.controller';
 
 const router = Router();
@@ -65,5 +65,7 @@ router.get('/:conversationId', getConversation);
  * @access Public
  */
 router.get('/:conversationId/status', getConversationStatus);
+
+router.get('/:conversationId/reset', resetConversationStatus);
 
 export { router as conversationRoutes };

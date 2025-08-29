@@ -149,7 +149,8 @@ export type ProcessingStage =
     | 'transcription'
     | 'parsing'
     | 'insights'
-    | 'completion';
+    | 'completion'
+    | 'error';
 
 // ============================================================================
 // AUDIO PROCESSING CONFIGURATION
