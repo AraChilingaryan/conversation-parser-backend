@@ -1,6 +1,8 @@
+// src/services/speech-to-text.service.ts
 import {SpeechClient} from '@google-cloud/speech';
 import {logger} from '../utils/logger.util';
 import type {
+    AudioEncoding,
     DiarizationResult,
     SpeakerSegment,
     SpeechRecognitionConfig,
@@ -16,12 +18,6 @@ export class SpeechToTextService {
     private speechClient: SpeechClient;
 
     private constructor() {
-        // Resolve relative path to absolute
-        if (process.env.GOOGLE_APPLICATION_CREDENTIALS?.startsWith('./') || process.env.GOOGLE_APPLICATION_CREDENTIALS?.startsWith('../')) {
-            const path = require('path');
-            process.env.GOOGLE_APPLICATION_CREDENTIALS = path.resolve(process.cwd(), process.env.GOOGLE_APPLICATION_CREDENTIALS);
-        }
-
         this.speechClient = new SpeechClient();
     }
 
@@ -47,19 +43,15 @@ export class SpeechToTextService {
                     encoding: config.encoding as any,
                     sampleRateHertz: config.sampleRateHertz,
                     languageCode: config.languageCode,
-                    alternativeLanguageCodes: config.alternativeLanguageCodes || [],
-                    maxAlternatives: config.maxAlternatives || 1,
-                    profanityFilter: config.profanityFilter || false,
-                    speechContexts: config.speechContexts || [],
-                    enableWordTimeOffsets: config.enableWordTimeOffsets || true,
-                    enableAutomaticPunctuation: config.enableAutomaticPunctuation || true,
-                    diarizationConfig: config.diarizationConfig || {
-                        enableSpeakerDiarization: true,
-                        minSpeakerCount: 1,
-                        maxSpeakerCount: 6
-                    },
-                    model: config.model as any || 'latest_long',
-                    useEnhanced: config.useEnhanced || true
+                    alternativeLanguageCodes: config.alternativeLanguageCodes,
+                    maxAlternatives: config.maxAlternatives,
+                    profanityFilter: config.profanityFilter,
+                    speechContexts: config.speechContexts,
+                    enableWordTimeOffsets: config.enableWordTimeOffsets,
+                    enableAutomaticPunctuation: config.enableAutomaticPunctuation,
+                    diarizationConfig: config.diarizationConfig,
+                    model: config.model as any,
+                    useEnhanced: config.useEnhanced
                 },
             };
 
@@ -67,7 +59,9 @@ export class SpeechToTextService {
                 encoding: request.config.encoding,
                 sampleRate: request.config.sampleRateHertz,
                 language: request.config.languageCode,
-                diarization: request.config.diarizationConfig?.enableSpeakerDiarization
+                diarization: request.config.diarizationConfig?.enableSpeakerDiarization,
+                minSpeakers: request.config.diarizationConfig?.minSpeakerCount,
+                maxSpeakers: request.config.diarizationConfig?.maxSpeakerCount
             });
 
             const [operation] = await this.speechClient.longRunningRecognize(request);
@@ -102,7 +96,6 @@ export class SpeechToTextService {
     extractSpeakerDiarization(speechResults: SpeechToTextResponse): DiarizationResult {
         const segments: SpeakerSegment[] = [];
         const speakerStats = new Map<number, { totalTime: number; segmentCount: number }>();
-
         let totalDuration = 0;
 
         for (const result of speechResults.results) {
@@ -110,6 +103,12 @@ export class SpeechToTextService {
 
             const alternative = result.alternatives[0];
             if (!alternative.words) continue;
+
+            // Skip results that don't have speaker tags (these are just transcripts without diarization)
+            const hasValidSpeakerTags = alternative.words.some((word: { speakerTag: number; }) => word.speakerTag && word.speakerTag > 0);
+            if (!hasValidSpeakerTags) {
+                continue; // Skip this result as it doesn't have speaker diarization
+            }
 
             let currentSegment: SpeakerSegment | null = null;
 
@@ -154,7 +153,6 @@ export class SpeechToTextService {
         }
 
         const speakerCount = speakerStats.size;
-
         logger.info(`Diarization complete: ${speakerCount} speakers, ${segments.length} segments, ${totalDuration.toFixed(2)}s total`);
 
         return {
@@ -229,14 +227,14 @@ export class SpeechToTextService {
 
         logger.info(`Converted to conversation format: ${speakers.length} speakers, ${messages.length} messages`);
 
-        return {speakers, messages};
+        return { speakers, messages };
     }
 
     /**
      * Get audio encoding from file format
      */
-    getAudioEncoding(mimeType: string, format: string): string {
-        const encodingMap: Record<string, string> = {
+    getAudioEncoding(mimeType: string, format: string): AudioEncoding {
+        const encodingMap: Record<string, AudioEncoding> = {
             'audio/wav': 'LINEAR16',
             'audio/wave': 'LINEAR16',
             'audio/mp3': 'MP3',
@@ -328,7 +326,7 @@ export class SpeechToTextService {
         segment: SpeakerSegment
     ): void {
         const duration = segment.endTime - segment.startTime;
-        const stats = speakerStats.get(segment.speakerTag) || {totalTime: 0, segmentCount: 0};
+        const stats = speakerStats.get(segment.speakerTag) || { totalTime: 0, segmentCount: 0 };
 
         stats.totalTime += duration;
         stats.segmentCount += 1;

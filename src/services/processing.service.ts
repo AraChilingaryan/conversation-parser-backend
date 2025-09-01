@@ -282,10 +282,9 @@ export class ProcessingService {
         // Calculate speaking time distribution
         const speakingTimeDistribution = speakers.map(speaker => ({
             speakerId: speaker.id,
-            percentage: Math.round((speaker.totalSpeakingTime / totalDuration) * 10000) / 100,
+            percentage: Math.round((speaker.totalSpeakingTime / totalDuration) * 100 * 100) / 100,
             totalTime: speaker.totalSpeakingTime
         }));
-
         return {
             totalMessages: messages.length,
             questionCount,

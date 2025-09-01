@@ -48,16 +48,23 @@ export interface SpeakerCharacteristics {
 // ============================================================================
 
 export interface Message {
-    messageId: string; // Unique message identifier
-    speakerId: string; // References Speaker.id
-    content: string; // Transcribed text
-    startTime: number; // Start time in seconds
-    endTime: number; // End time in seconds
-    confidence: number; // Transcription confidence for this message (0-1)
-    messageType: MessageType;
-    order: number; // Sequential order in conversation
-    wordCount: number; // Number of words in message
-    alternatives?: MessageAlternative[]; // Alternative transcriptions
+    messageId: string;
+    speakerId: string;
+    content: string;
+    startTime: number;
+    endTime: number;
+    confidence: number;
+    messageType: 'question' | 'response' | 'statement' | 'interruption' | 'unknown';
+    order: number;
+    wordCount: number;
+    alternatives: string[];
+    analysis?: {  // Add this field
+        messageTypeConfidence: number;
+        indicators: string[];
+        sentiment: 'positive' | 'negative' | 'neutral';
+        sentimentConfidence: number;
+        emotionalTone?: 'excited' | 'frustrated' | 'calm' | 'concerned' | 'formal';
+    };
 }
 
 export type MessageType = 'question' | 'response' | 'statement' | 'interruption' | 'unknown';

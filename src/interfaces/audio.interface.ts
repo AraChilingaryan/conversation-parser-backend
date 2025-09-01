@@ -109,10 +109,10 @@ export interface SpeechRecognitionConfig {
     encoding: AudioEncoding;
     sampleRateHertz: number;
     languageCode: string;
-    alternativeLanguageCodes?: string[];
+    alternativeLanguageCodes?: string[];  // Keep as optional
     maxAlternatives?: number;
-    profanityFilter?: boolean;
-    speechContexts?: SpeechContext[];
+    profanityFilter?: boolean;            // Keep as optional
+    speechContexts?: SpeechContext[];     // Keep as optional
     enableWordTimeOffsets?: boolean;
     enableAutomaticPunctuation?: boolean;
     diarizationConfig?: SpeakerDiarizationConfig;
