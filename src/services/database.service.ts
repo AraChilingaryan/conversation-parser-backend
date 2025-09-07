@@ -1,6 +1,8 @@
 import { databaseConfig } from '../config/database.config';
 import { conversationRepository } from '../repositories/conversation.repository';
 import { logger } from '../utils/logger.util';
+import {userRepository} from "../repositories/user.repository";
+import {recordingRepository} from "../repositories/recording.repository";
 
 export class DatabaseService {
     private static instance: DatabaseService;
@@ -26,6 +28,15 @@ export class DatabaseService {
 
     get conversations() {
         return conversationRepository;
+    }
+
+    get users() {
+        return userRepository;
+    }
+
+
+    get recordings() {
+        return recordingRepository;
     }
 }
 

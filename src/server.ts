@@ -11,6 +11,8 @@ import { databaseService } from './services/database.service';
 import { conversationRoutes } from './routes/conversation.routes';
 import { handleUploadError } from './middleware/upload.middleware';
 import { processingRoutes } from "./routes/processing.routes";
+import { twilioRoutes } from './routes/twilio.routes';
+import { userMetadataRoutes } from "./routes/user-metadata.routes";
 
 // Load environment variables
 config();
@@ -43,6 +45,8 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/health', healthRoutes);
 app.use('/api/v1/conversations', conversationRoutes);
 app.use('/api/v1/processing', processingRoutes);
+app.use('/api/v1/webhooks/twilio', twilioRoutes);
+app.use('/api/v1', userMetadataRoutes);
 
 app.use('/api/v1', (req, res) => {
     res.json({
