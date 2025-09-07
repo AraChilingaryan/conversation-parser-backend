@@ -19,6 +19,12 @@ export interface ConversationMetadata {
     fileSize: number; // Original file size in bytes
     originalFileName: string;
     audioFormat: AudioFormat;
+    source?: 'upload' | 'twilio';
+    twilioCallSid?: string;
+    twilioRecordingSid?: string;
+    fromNumber?: string;
+    toNumber?: string;
+    callDirection?: string;
 }
 
 export type AudioFormat = 'wav' | 'mp3' | 'm4a' | 'webm' | 'ogg' | 'mpeg';
