@@ -1,14 +1,10 @@
-import { Router } from 'express';
+import {Router} from 'express';
 import {
     createOrUpdateUser,
+    getUserByPhone,
     updateUserSubscription,
     updateUserTwilio,
-    getUserByPhone,
-    authorizeCall
 } from '../controllers/user-metadata.controller';
-import {
-    handleRecordingWebhook
-} from '../controllers/twilio.controller';
 
 const router = Router();
 
@@ -18,8 +14,4 @@ router.patch('/users/subscription', updateUserSubscription);
 router.patch('/users/twilio', updateUserTwilio);
 router.get('/users/phone/:phoneNumber', getUserByPhone);
 
-// Twilio webhooks
-router.post('/webhooks/call-auth', authorizeCall);
-router.post('/webhooks/recording', handleRecordingWebhook);
-
-export { router as userMetadataRoutes };
+export {router as userMetadataRoutes};
