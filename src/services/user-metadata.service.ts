@@ -2,7 +2,15 @@
 
 import { databaseService } from './database.service';
 import { logger } from '../utils/logger.util';
-import type { User, Recording, CreateUserRequest, UpdateUserSubscriptionRequest, UpdateUserTwilioRequest } from '../interfaces/user.interface';
+import type {
+    User,
+    Recording,
+    CreateUserRequest,
+    UpdateUserSubscriptionRequest,
+    UpdateUserTwilioRequest,
+    CallAuthorizationRequest,
+    CallAuthorizationResponse
+} from '../interfaces/user.interface';
 
 export class UserMetadataService {
     private static instance: UserMetadataService;
@@ -21,44 +29,77 @@ export class UserMetadataService {
      */
     async createOrUpdateUser(userData: CreateUserRequest): Promise<{ success: boolean; user?: User; error?: string }> {
         try {
-            // Check if user already exists
-            const existingUser = await this.findUserById(userData.uid);
+            // Check if user already exists by UID
+            const existingUser = await databaseService.users.findByUid(userData.uid);
 
-            const user: User = {
-                uid: userData.uid,
-                phoneNumber: userData.phoneNumber,
-                isVerified: true, // Since iOS app sends this, user is already verified
-                profile: userData.profile || {},
-                subscription: {
-                    ...userData.subscription,
-                    trialMinutesUsed: existingUser?.subscription.trialMinutesUsed || 0,
-                    trialMinutesLimit: 60, // Default trial limit
-                    lastSyncedFromApp: new Date().toISOString()
-                },
-                twilio: {
-                    ...userData.twilio,
-                    assignedAt: existingUser?.twilio.assignedAt || new Date().toISOString(),
-                    lastSyncedFromApp: new Date().toISOString()
-                },
-                createdAt: existingUser?.createdAt || new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                lastLoginAt: new Date().toISOString()
-            };
-
-            // Save or update user
             if (existingUser) {
-                await this.updateUser(user);
-                logger.info(`User updated from iOS app: ${userData.uid}`);
-            } else {
-                await this.saveUser(user);
-                logger.info(`User created from iOS app: ${userData.uid}`);
-            }
+                // Update existing user
+                const updatedUser: User = {
+                    ...existingUser,
+                    phoneNumber: userData.phoneNumber,
+                    isVerified: true, // Since iOS app sends this, user is already verified
+                    profile: {
+                        ...existingUser.profile,
+                        ...userData.profile
+                    },
+                    subscription: {
+                        ...existingUser.subscription,
+                        ...userData.subscription,
+                        trialMinutesUsed: existingUser.subscription.trialMinutesUsed, // Preserve existing usage
+                        trialMinutesLimit: existingUser.subscription.trialMinutesLimit || 30, // Keep existing or default
+                        lastSyncedFromApp: new Date().toISOString()
+                    },
+                    twilio: {
+                        ...existingUser.twilio,
+                        ...userData.twilio,
+                        assignedAt: existingUser.twilio.assignedAt || new Date().toISOString(),
+                        lastSyncedFromApp: new Date().toISOString()
+                    },
+                    updatedAt: new Date().toISOString(),
+                    lastLoginAt: new Date().toISOString()
+                };
 
-            return { success: true, user };
+                await databaseService.users.update(existingUser.uid!, updatedUser);
+                logger.info(`User updated from iOS app: ${userData.uid}`);
+
+                return { success: true, user: updatedUser };
+            } else {
+                // Create new user
+                const newUserData: Omit<User, 'id' | 'createdAt' | 'updatedAt'> = {
+                    uid: userData.uid,
+                    phoneNumber: userData.phoneNumber,
+                    isVerified: true, // Since iOS app sends this, user is already verified
+                    profile: userData.profile || {},
+                    subscription: {
+                        status: userData.subscription.status,
+                        plan: userData.subscription.plan,
+                        startDate: userData.subscription.startDate,
+                        endDate: userData.subscription.endDate,
+                        trialMinutesUsed: 0,
+                        trialMinutesLimit: 30, // Default trial limit
+                        stripeCustomerId: userData.subscription.stripeCustomerId,
+                        stripeSubscriptionId: userData.subscription.stripeSubscriptionId,
+                        lastSyncedFromApp: new Date().toISOString()
+                    },
+                    twilio: {
+                        assignedNumber: userData.twilio.assignedNumber,
+                        numberSid: userData.twilio.numberSid,
+                        assignedAt: new Date().toISOString(),
+                        lastSyncedFromApp: new Date().toISOString()
+                    },
+                    lastLoginAt: new Date().toISOString()
+                };
+
+                const userId = await databaseService.users.createUser(newUserData);
+                const createdUser = await databaseService.users.findById(userId);
+
+                logger.info(`User created from iOS app: ${userData.uid}`);
+                return { success: true, user: createdUser! };
+            }
 
         } catch (error) {
             logger.error('Error creating/updating user:', error);
-            return { success: false, error: 'Failed to save user data' };
+            return { success: false, error: `Failed to save user data: ${error instanceof Error ? error.message : 'Unknown error'}` };
         }
     }
 
@@ -67,27 +108,20 @@ export class UserMetadataService {
      */
     async updateUserSubscription(subscriptionData: UpdateUserSubscriptionRequest): Promise<{ success: boolean; error?: string }> {
         try {
-            const user = await this.findUserById(subscriptionData.uid);
+            const user = await databaseService.users.findByUid(subscriptionData.uid);
             if (!user) {
                 return { success: false, error: 'User not found' };
             }
 
-            user.subscription = {
-                ...subscriptionData.subscription,
-                trialMinutesUsed: user.subscription.trialMinutesUsed, // Preserve existing usage
-                trialMinutesLimit: user.subscription.trialMinutesLimit, // Preserve existing limit
-                lastSyncedFromApp: new Date().toISOString()
-            };
-            user.updatedAt = new Date().toISOString();
+            // Use the specialized subscription update method
+            await databaseService.users.updateSubscription(user.uid!, subscriptionData.subscription);
 
-            await this.updateUser(user);
             logger.info(`User subscription updated from iOS app: ${subscriptionData.uid}`);
-
             return { success: true };
 
         } catch (error) {
             logger.error('Error updating user subscription:', error);
-            return { success: false, error: 'Failed to update subscription' };
+            return { success: false, error: `Failed to update subscription: ${error instanceof Error ? error.message : 'Unknown error'}` };
         }
     }
 
@@ -96,68 +130,90 @@ export class UserMetadataService {
      */
     async updateUserTwilio(twilioData: UpdateUserTwilioRequest): Promise<{ success: boolean; error?: string }> {
         try {
-            const user = await this.findUserById(twilioData.uid);
+            const user = await databaseService.users.findByUid(twilioData.uid);
             if (!user) {
                 return { success: false, error: 'User not found' };
             }
 
-            user.twilio = {
-                ...twilioData.twilio,
-                assignedAt: user.twilio.assignedAt || new Date().toISOString(),
-                lastSyncedFromApp: new Date().toISOString()
-            };
-            user.updatedAt = new Date().toISOString();
+            // Use the specialized Twilio update method
+            await databaseService.users.updateTwilioAssignment(user.uid!, twilioData.twilio);
 
-            await this.updateUser(user);
             logger.info(`User Twilio data updated from iOS app: ${twilioData.uid}`);
-
             return { success: true };
 
         } catch (error) {
             logger.error('Error updating user Twilio data:', error);
-            return { success: false, error: 'Failed to update Twilio data' };
+            return { success: false, error: `Failed to update Twilio data: ${error instanceof Error ? error.message : 'Unknown error'}` };
         }
     }
 
     /**
      * Check if user is authorized to make calls
      */
-    async authorizeCall(toNumber: string, callSid: string): Promise<{ authorized: boolean; reason?: string; userId?: string }> {
+    async authorizeCall(authRequest: CallAuthorizationRequest): Promise<CallAuthorizationResponse> {
         try {
             // Find user by their assigned Twilio number
-            const user = await this.findUserByTwilioNumber(toNumber);
+            const user = await databaseService.users.findByTwilioNumber(authRequest.toNumber);
             if (!user) {
-                return { authorized: false, reason: 'Number not assigned to any user' };
+                return {
+                    authorized: false,
+                    reason: 'Number not assigned to any user'
+                };
             }
 
             // Check subscription status
             if (user.subscription.status === 'expired' || user.subscription.status === 'canceled') {
-                return { authorized: false, reason: 'Subscription expired or canceled', userId: user.uid };
+                return {
+                    authorized: false,
+                    reason: 'Subscription expired or canceled',
+                    userId: user.uid
+                };
             }
 
             // Check trial limits for trial users
             if (user.subscription.status === 'trial') {
-                if (user.subscription.trialMinutesUsed >= user.subscription.trialMinutesLimit) {
-                    return { authorized: false, reason: 'Trial minutes exceeded', userId: user.uid };
+                const remainingMinutes = user.subscription.trialMinutesLimit - user.subscription.trialMinutesUsed;
+                if (remainingMinutes <= 0) {
+                    return {
+                        authorized: false,
+                        reason: 'Trial minutes exceeded',
+                        userId: user.uid,
+                        remainingMinutes: 0
+                    };
                 }
+
+                return {
+                    authorized: true,
+                    userId: user.uid,
+                    remainingMinutes
+                };
             }
 
-            // For active subscriptions, assume iOS app manages limits
+            // For active subscriptions, check if subscription period is valid
             if (user.subscription.status === 'active') {
-                // Check if subscription period is valid
                 const now = new Date();
                 const endDate = new Date(user.subscription.endDate);
 
                 if (now > endDate) {
-                    return { authorized: false, reason: 'Subscription period ended', userId: user.uid };
+                    return {
+                        authorized: false,
+                        reason: 'Subscription period ended',
+                        userId: user.uid
+                    };
                 }
             }
 
-            return { authorized: true, userId: user.uid };
+            return {
+                authorized: true,
+                userId: user.uid
+            };
 
         } catch (error) {
             logger.error('Error authorizing call:', error);
-            return { authorized: false, reason: 'Authorization check failed' };
+            return {
+                authorized: false,
+                reason: 'Authorization check failed'
+            };
         }
     }
 
@@ -167,7 +223,7 @@ export class UserMetadataService {
     async processRecordingWebhook(twilioData: any): Promise<{ success: boolean; conversationId?: string; error?: string }> {
         try {
             // Find user by toNumber (their assigned Twilio number)
-            const user = await this.findUserByTwilioNumber(twilioData.To || twilioData.toNumber);
+            const user = await databaseService.users.findByTwilioNumber(twilioData.To || twilioData.toNumber);
             if (!user) {
                 logger.warn(`Recording received for unassigned number: ${twilioData.To || twilioData.toNumber}`);
                 return { success: false, error: 'Number not assigned to any user' };
@@ -203,8 +259,8 @@ export class UserMetadataService {
                 updatedAt: new Date().toISOString()
             };
 
-            // Save recording
-            await this.saveRecording(recording);
+            // Save recording (using your recording repository)
+            await databaseService.recordings.create(recording);
 
             // Update user usage (convert seconds to minutes, round up)
             const minutesUsed = Math.ceil(recording.recordingDuration / 60);
@@ -218,7 +274,7 @@ export class UserMetadataService {
 
         } catch (error) {
             logger.error('Error processing recording webhook:', error);
-            return { success: false, error: 'Processing failed' };
+            return { success: false, error: `Processing failed: ${error instanceof Error ? error.message : 'Unknown error'}` };
         }
     }
 
@@ -227,7 +283,7 @@ export class UserMetadataService {
      */
     async getUserByPhone(phoneNumber: string): Promise<{ success: boolean; user?: User; error?: string }> {
         try {
-            const user = await this.findUserByPhone(phoneNumber);
+            const user = await databaseService.users.findByPhoneNumber(phoneNumber);
             if (!user) {
                 return { success: false, error: 'User not found' };
             }
@@ -236,44 +292,72 @@ export class UserMetadataService {
 
         } catch (error) {
             logger.error('Error getting user by phone:', error);
-            return { success: false, error: 'Query failed' };
+            return { success: false, error: `Query failed: ${error instanceof Error ? error.message : 'Unknown error'}` };
         }
     }
 
-    // Private helper methods
-    private async findUserById(uid: string): Promise<User | null> {
-        return await databaseService.users.findById(uid);
+    /**
+     * Get user by UID
+     */
+    async getUserByUid(uid: string): Promise<{ success: boolean; user?: User; error?: string }> {
+        try {
+            const user = await databaseService.users.findByUid(uid);
+            if (!user) {
+                return { success: false, error: 'User not found' };
+            }
+
+            return { success: true, user };
+
+        } catch (error) {
+            logger.error('Error getting user by UID:', error);
+            return { success: false, error: `Query failed: ${error instanceof Error ? error.message : 'Unknown error'}` };
+        }
     }
 
-    private async findUserByPhone(phoneNumber: string): Promise<User | null> {
-        return await databaseService.users.findByPhoneNumber(phoneNumber);
+    /**
+     * Get user's remaining trial minutes
+     */
+    async getRemainingTrialMinutes(uid: string): Promise<{ success: boolean; remainingMinutes?: number; error?: string }> {
+        try {
+            const user = await databaseService.users.findByUid(uid);
+            if (!user) {
+                return { success: false, error: 'User not found' };
+            }
+
+            if (user.subscription.status !== 'trial') {
+                return { success: true, remainingMinutes: 0 };
+            }
+
+            const remainingMinutes = Math.max(0, user.subscription.trialMinutesLimit - user.subscription.trialMinutesUsed);
+            return { success: true, remainingMinutes };
+
+        } catch (error) {
+            logger.error('Error getting remaining trial minutes:', error);
+            return { success: false, error: `Query failed: ${error instanceof Error ? error.message : 'Unknown error'}` };
+        }
     }
 
-    private async findUserByTwilioNumber(twilioNumber: string): Promise<User | null> {
-        return await databaseService.users.findByTwilioNumber(twilioNumber);
-    }
-
-    private async saveUser(user: User): Promise<void> {
-        await databaseService.users.create(user);
-    }
-
-    private async updateUser(user: User): Promise<void> {
-        await databaseService.users.update(user.uid, user);
-    }
-
-    private async saveRecording(recording: Recording): Promise<void> {
-        await databaseService.recordings.create(recording);
-    }
-
+    /**
+     * Update user trial minutes usage
+     */
     private async updateUserUsage(userId: string, minutesUsed: number): Promise<void> {
-        const user = await this.findUserById(userId);
-        if (user && user.subscription.status === 'trial') {
-            user.subscription.trialMinutesUsed += minutesUsed;
-            user.updatedAt = new Date().toISOString();
-            await this.updateUser(user);
+        try {
+            const user = await databaseService.users.findByUid(userId);
+            if (user && user.subscription.status === 'trial') {
+                await databaseService.users.updateSubscription(user.uid!, {
+                    trialMinutesUsed: user.subscription.trialMinutesUsed + minutesUsed
+                });
+                logger.info(`Updated trial usage for user ${userId}: +${minutesUsed} minutes`);
+            }
+        } catch (error) {
+            logger.error('Error updating user usage:', error);
+            throw error;
         }
     }
 
+    /**
+     * Create conversation from recording
+     */
     private async createConversationFromRecording(recording: Recording): Promise<string> {
         // This triggers your existing conversation parser
         const conversationId = `conv_${recording.callSid}`;
@@ -283,6 +367,7 @@ export class UserMetadataService {
         // 2. Create conversation record in your existing system
         // 3. Trigger speech-to-text processing
 
+        logger.info(`Created conversation: ${conversationId}`);
         return conversationId;
     }
 }

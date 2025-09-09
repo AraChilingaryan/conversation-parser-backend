@@ -1,9 +1,10 @@
-import { Router } from 'express';
+import {Router} from 'express';
 import {
     handleRecordingWebhook,
     testTwilioIntegration,
     getTwilioConversations
 } from '../controllers/twilio.controller';
+import { authorizeCall } from "../controllers/twilio.controller";
 
 const router = Router();
 
@@ -28,5 +29,9 @@ router.get('/test', testTwilioIntegration);
  */
 router.get('/conversations', getTwilioConversations);
 
-export { router as twilioRoutes };
+// Twilio webhooks
+router.post('/webhooks/call-auth', authorizeCall);
+router.post('/webhooks/recording', handleRecordingWebhook);
+
+export {router as twilioRoutes};
 
