@@ -369,7 +369,7 @@ export class UserRepository extends BaseFirestoreRepository<User> {
             }
 
             const now = new Date();
-            const endDate = new Date(user.subscription.endDate);
+            const endDate = new Date(user.subscription.expiresAt);
 
             return user.subscription.status === 'active' && now <= endDate;
         } catch (error) {

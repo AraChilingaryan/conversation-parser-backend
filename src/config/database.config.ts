@@ -31,7 +31,7 @@ class DatabaseConfig {
     /**
      * Initialize Firebase Admin SDK
      */
-    async initialize(): Promise<void> {
+    initialize = async (): Promise<void> => {
         if (this._initialized) {
             logger.debug('Firebase already initialized');
             return;
@@ -70,7 +70,7 @@ class DatabaseConfig {
             logger.error('Failed to initialize Firebase:', error);
             throw new Error(`Database initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
-    }
+    };
 
     /**
      * Get Firestore instance

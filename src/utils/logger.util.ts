@@ -78,7 +78,7 @@ class Logger {
         }
     }
 
-    error(message: string, meta?: any): void {
+    error(message: string, meta?: any, p0?: { fromNumber: string; toNumber: string; callSid: string; }): void {
         if (this.logLevel >= LogLevel.ERROR) {
             this.writeLog(this.formatLogEntry('error', message, meta));
         }

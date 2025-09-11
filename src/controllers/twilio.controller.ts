@@ -49,6 +49,9 @@ export const handleRecordingWebhook = async (req: Request, res: Response): Promi
             RecordingDuration
         });
 
+        // TODO check usage compare with await userMetadataService.processRecordingWebhook();
+        // await twilioIntegrationService.processRecordingWebhook({);
+
         if (result.success) {
             logger.info(`Twilio recording processed successfully: ${result.conversationId}`);
 

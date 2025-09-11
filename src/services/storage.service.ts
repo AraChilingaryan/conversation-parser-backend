@@ -25,7 +25,8 @@ export class StorageService {
     async uploadAudioFile(conversationId: string, audioFile: AudioFile): Promise<StorageUploadResult> {
         try {
             const storage = databaseConfig.storage;
-            const bucket = storage.bucket();
+            const bucket = storage.bucket("callrecorder-7c084.firebasestorage.app");
+            console.log("bucket", bucket.name)
 
             // Generate storage path
             const fileExtension = this.getFileExtension(audioFile.originalName, audioFile.mimeType);
