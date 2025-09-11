@@ -2,7 +2,6 @@ import {BaseFirestoreRepository} from "../repositories/base.repository";
 import {Recording} from "../interfaces/user.interface";
 
 export class RecordingRepository extends BaseFirestoreRepository<Recording> {
-    // TODO check collection name logic, either recordings would be or users.recordings, research and understand which approach is better
     constructor() {
         super('recordings');
     }
