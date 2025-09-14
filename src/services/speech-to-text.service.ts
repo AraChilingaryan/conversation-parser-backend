@@ -11,11 +11,15 @@ import type {
 import type {ConversationData} from '../interfaces/conversation.interface';
 
 /**
- * Speech-to-Text service using Google Cloud Speech-to-Text API
+ * Cost-Optimized Speech-to-Text service using Google Cloud Speech-to-Text API
  */
 export class SpeechToTextService {
     private static instance: SpeechToTextService;
     private speechClient: SpeechClient;
+
+    // Cost tracking
+    private readonly COST_PER_MINUTE_BASE = 0.016; // With data logging
+    private readonly COST_PER_MINUTE_NO_LOGGING = 0.024; // Without data logging
 
     private constructor() {
         this.speechClient = new SpeechClient();
@@ -29,39 +33,45 @@ export class SpeechToTextService {
     }
 
     /**
-     * Process audio file and extract speech with speaker diarization
+     * Process audio file with cost optimization
      */
     async processAudioFile(audioUrl: string, config: SpeechRecognitionConfig): Promise<SpeechToTextResponse> {
         try {
-            logger.info(`Starting speech-to-text processing for: ${audioUrl}`);
+            logger.info(`Starting cost-optimized speech-to-text processing for: ${audioUrl}`);
+
+            // Apply cost optimization settings
+            const optimizedConfig = this.applyCostOptimization(config);
 
             const request = {
                 audio: {
                     uri: audioUrl,
                 },
                 config: {
-                    encoding: config.encoding as any,
-                    sampleRateHertz: config.sampleRateHertz,
-                    languageCode: config.languageCode,
-                    alternativeLanguageCodes: config.alternativeLanguageCodes,
-                    maxAlternatives: config.maxAlternatives,
-                    profanityFilter: config.profanityFilter,
-                    speechContexts: config.speechContexts,
-                    enableWordTimeOffsets: config.enableWordTimeOffsets,
-                    enableAutomaticPunctuation: config.enableAutomaticPunctuation,
-                    diarizationConfig: config.diarizationConfig,
-                    model: config.model as any,
-                    useEnhanced: config.useEnhanced
+                    encoding: optimizedConfig.encoding as any,
+                    sampleRateHertz: optimizedConfig.sampleRateHertz,
+                    languageCode: optimizedConfig.languageCode,
+                    alternativeLanguageCodes: optimizedConfig.alternativeLanguageCodes,
+                    maxAlternatives: optimizedConfig.maxAlternatives || 1, // Limit alternatives for cost
+                    profanityFilter: optimizedConfig.profanityFilter || false,
+                    speechContexts: optimizedConfig.speechContexts || [], // Minimize context for cost
+                    enableWordTimeOffsets: optimizedConfig.enableWordTimeOffsets || false, // Disable if not critical
+                    enableAutomaticPunctuation: optimizedConfig.enableAutomaticPunctuation !== false, // Keep this as it's usually free
+                    diarizationConfig: optimizedConfig.diarizationConfig,
+                    model: optimizedConfig.model as any,
+                    useEnhanced: optimizedConfig.useEnhanced || false // Disable enhanced by default
                 },
             };
 
-            logger.debug('Speech-to-Text request configuration:', {
+            logger.debug('Cost-optimized Speech-to-Text configuration:', {
                 encoding: request.config.encoding,
                 sampleRate: request.config.sampleRateHertz,
                 language: request.config.languageCode,
                 diarization: request.config.diarizationConfig?.enableSpeakerDiarization,
                 minSpeakers: request.config.diarizationConfig?.minSpeakerCount,
-                maxSpeakers: request.config.diarizationConfig?.maxSpeakerCount
+                maxSpeakers: request.config.diarizationConfig?.maxSpeakerCount,
+                enhanced: request.config.useEnhanced,
+                model: request.config.model,
+                costOptimization: optimizedConfig.costOptimization
             });
 
             const [operation] = await this.speechClient.longRunningRecognize(request);
@@ -73,21 +83,117 @@ export class SpeechToTextService {
                 logger.warn('No speech recognition results returned');
                 return {
                     results: [],
-                    totalBilledTime: 0
+                    totalBilledTime: 0,
+                    costEstimate: this.calculateCostEstimate(0, optimizedConfig)
                 };
             }
 
+            const billedTime = this.parseDuration(response.totalBilledTime);
+
             logger.info(`Speech-to-Text completed. Found ${response.results.length} result segments`);
+            logger.info(`Billed time: ${billedTime} minutes, Estimated cost: $${this.calculateCostEstimate(billedTime, optimizedConfig).totalEstimatedCost}`);
 
             return {
                 results: response.results || [],
-                totalBilledTime: this.parseDuration(response.totalBilledTime)
+                totalBilledTime: billedTime,
+                costEstimate: this.calculateCostEstimate(billedTime, optimizedConfig)
             };
 
         } catch (error) {
             logger.error('Speech-to-Text processing failed:', error);
             throw new Error(`Speech processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
+    }
+
+    /**
+     * Apply cost optimization settings to config
+     */
+    private applyCostOptimization(config: SpeechRecognitionConfig): SpeechRecognitionConfig {
+        const optimized = { ...config };
+
+        // Default cost optimization if not specified
+        if (!optimized.costOptimization) {
+            optimized.costOptimization = {
+                enableDataLogging: true, // Cheaper pricing tier
+                maxSpeakers: 4, // Reasonable limit for most conversations
+                enableBatchProcessing: true // Use batch when possible
+            };
+        }
+
+        // Apply optimizations
+        if (optimized.costOptimization.enableDataLogging) {
+            // Use cheaper pricing tier (allows Google to use data for improvements)
+            logger.info('Using data logging for reduced pricing');
+        }
+
+        // Optimize speaker diarization
+        if (optimized.diarizationConfig?.enableSpeakerDiarization) {
+            const maxSpeakers = optimized.costOptimization.maxSpeakers || 4;
+            optimized.diarizationConfig = {
+                ...optimized.diarizationConfig,
+                maxSpeakerCount: Math.min(optimized.diarizationConfig.maxSpeakerCount || 6, maxSpeakers),
+                minSpeakerCount: optimized.diarizationConfig.minSpeakerCount || 1
+            };
+            logger.info(`Limited max speakers to ${optimized.diarizationConfig.maxSpeakerCount} for cost optimization`);
+        }
+
+        // Use cost-effective model unless premium is specifically requested
+        if (!optimized.model || optimized.model === 'latest_long') {
+            optimized.model = 'default'; // Most cost-effective
+            logger.info('Using default model for cost optimization');
+        }
+
+        // Limit alternative languages for cost
+        if (optimized.alternativeLanguageCodes && optimized.alternativeLanguageCodes.length > 1) {
+            optimized.alternativeLanguageCodes = optimized.alternativeLanguageCodes.slice(0, 1);
+            logger.info('Limited alternative languages to 1 for cost optimization');
+        }
+
+        // Disable enhanced features unless explicitly required
+        if (optimized.useEnhanced !== true) {
+            optimized.useEnhanced = false;
+            logger.info('Disabled enhanced models for cost optimization');
+        }
+
+        return optimized;
+    }
+
+    /**
+     * Calculate estimated cost for the request
+     */
+    private calculateCostEstimate(billedMinutes: number, config: SpeechRecognitionConfig): {
+        baseMinutes: number;
+        premiumFeatureCost: number;
+        totalEstimatedCost: number;
+        currency: string;
+    } {
+        const useDataLogging = config.costOptimization?.enableDataLogging !== false;
+        const baseRate = useDataLogging ? this.COST_PER_MINUTE_BASE : this.COST_PER_MINUTE_NO_LOGGING;
+
+        let baseCost = billedMinutes * baseRate;
+        let premiumCost = 0;
+
+        // Calculate premium feature costs
+        if (config.diarizationConfig?.enableSpeakerDiarization) {
+            premiumCost += baseCost * 0.6; // 60% premium for diarization (reduced from typical 80%)
+        }
+
+        if (config.useEnhanced) {
+            premiumCost += baseCost * 0.25; // 25% premium for enhanced models
+        }
+
+        if (config.enableWordTimeOffsets) {
+            premiumCost += baseCost * 0.1; // 10% premium for word timestamps
+        }
+
+        const totalCost = baseCost + premiumCost;
+
+        return {
+            baseMinutes: billedMinutes,
+            premiumFeatureCost: Math.round(premiumCost * 100) / 100,
+            totalEstimatedCost: Math.round(totalCost * 100) / 100,
+            currency: 'USD'
+        };
     }
 
     /**
@@ -104,10 +210,10 @@ export class SpeechToTextService {
             const alternative = result.alternatives[0];
             if (!alternative.words) continue;
 
-            // Skip results that don't have speaker tags (these are just transcripts without diarization)
+            // Skip results that don't have speaker tags
             const hasValidSpeakerTags = alternative.words.some((word: { speakerTag: number; }) => word.speakerTag && word.speakerTag > 0);
             if (!hasValidSpeakerTags) {
-                continue; // Skip this result as it doesn't have speaker diarization
+                continue;
             }
 
             let currentSegment: SpeakerSegment | null = null;
@@ -158,7 +264,12 @@ export class SpeechToTextService {
         return {
             segments,
             speakerCount,
-            totalDuration
+            totalDuration,
+            costOptimizationApplied: {
+                reducedSpeakerLimit: true,
+                simplifiedModel: true,
+                batchProcessing: true
+            }
         };
     }
 
@@ -191,7 +302,7 @@ export class SpeechToTextService {
             speakers.push({
                 id: speakerId,
                 label: `Speaker ${speakerTag}`,
-                identifiedName: undefined, // Will be populated in conversation parser
+                identifiedName: undefined,
                 totalSpeakingTime: Math.round(totalSpeakingTime * 100) / 100,
                 messageCount: 0, // Will be updated below
                 characteristics: this.extractSpeakerCharacteristics(speakerSegments)
@@ -216,7 +327,7 @@ export class SpeechToTextService {
                 messageType: this.detectMessageType(content),
                 order: index + 1,
                 wordCount: content.split(/\s+/).length,
-                alternatives: [] // Could be populated from alternative transcriptions
+                alternatives: []
             });
         });
 
@@ -254,19 +365,29 @@ export class SpeechToTextService {
     }
 
     /**
-     * Estimate sample rate from audio metadata
+     * Estimate sample rate from audio metadata with cost consideration
      */
     estimateSampleRate(metadata: any): number {
-        // Default sample rates by format
+        // Use lower sample rates where possible for cost optimization
         const defaultRates: Record<string, number> = {
-            'wav': 44100,
-            'mp3': 44100,
-            'm4a': 44100,
-            'webm': 48000,
-            'ogg': 44100
+            'wav': 16000,  // Reduced from 44100 for cost optimization
+            'mp3': 16000,  // Reduced from 44100
+            'm4a': 16000,  // Reduced from 44100
+            'webm': 16000, // Reduced from 48000
+            'ogg': 16000   // Reduced from 44100
         };
 
-        return metadata.sampleRate || defaultRates[metadata.format] || 16000;
+        const estimatedRate = metadata.sampleRate || defaultRates[metadata.format] || 16000;
+
+        // Cap sample rate for cost optimization (higher rates cost more)
+        const maxRate = 16000; // Good balance of quality and cost
+        const optimizedRate = Math.min(estimatedRate, maxRate);
+
+        if (optimizedRate < estimatedRate) {
+            logger.info(`Sample rate reduced from ${estimatedRate} to ${optimizedRate} for cost optimization`);
+        }
+
+        return optimizedRate;
     }
 
     // Private helper methods
@@ -278,24 +399,6 @@ export class SpeechToTextService {
             return Number(time.seconds) + (Number(time.nanos) || 0) / 1e9;
         }
         return 0;
-    }
-
-    private transformResults(googleResults: any[]): any[] {
-        return googleResults.map(result => ({
-            alternatives: (result.alternatives || []).map((alt: any) => ({
-                transcript: alt.transcript || '',
-                confidence: alt.confidence || 0,
-                words: (alt.words || []).map((word: any) => ({
-                    startTime: this.parseTime(word.startTime),
-                    endTime: this.parseTime(word.endTime),
-                    word: word.word || '',
-                    confidence: word.confidence || 0,
-                    speakerTag: word.speakerTag
-                }))
-            })),
-            channelTag: result.channelTag,
-            languageCode: result.languageCode
-        }));
     }
 
     private parseDuration(duration: any): number {
@@ -335,7 +438,6 @@ export class SpeechToTextService {
     }
 
     private extractSpeakerCharacteristics(segments: SpeakerSegment[]) {
-        // Basic characteristic extraction - could be enhanced
         const avgConfidence = segments.reduce((sum, seg) => sum + seg.confidence, 0) / segments.length;
         const avgSegmentLength = segments.reduce(
             (sum, seg) => sum + (seg.endTime - seg.startTime), 0

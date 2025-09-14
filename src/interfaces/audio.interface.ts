@@ -1,7 +1,7 @@
 // src/interfaces/audio.interface.ts
 
 /**
- * Audio processing and file handling interfaces
+ * Audio processing and file handling interfaces - Cost Optimized
  */
 
 // ============================================================================
@@ -97,7 +97,7 @@ export type AudioValidationWarningCode =
     | 'LONG_DURATION';
 
 // ============================================================================
-// SPEECH-TO-TEXT SERVICE INTERFACES
+// SPEECH-TO-TEXT SERVICE INTERFACES - COST OPTIMIZED
 // ============================================================================
 
 export interface SpeechToTextRequest {
@@ -109,15 +109,21 @@ export interface SpeechRecognitionConfig {
     encoding: AudioEncoding;
     sampleRateHertz: number;
     languageCode: string;
-    alternativeLanguageCodes?: string[];  // Keep as optional
+    alternativeLanguageCodes?: string[];  // Reduced for cost optimization
     maxAlternatives?: number;
-    profanityFilter?: boolean;            // Keep as optional
-    speechContexts?: SpeechContext[];     // Keep as optional
+    profanityFilter?: boolean;
+    speechContexts?: SpeechContext[];
     enableWordTimeOffsets?: boolean;
     enableAutomaticPunctuation?: boolean;
     diarizationConfig?: SpeakerDiarizationConfig;
     model?: RecognitionModel;
-    useEnhanced?: boolean;
+    useEnhanced?: boolean; // Made optional for cost control
+    // New cost optimization options
+    costOptimization?: {
+        enableDataLogging: boolean; // Cheaper pricing tier
+        maxSpeakers: number; // Limit speakers to reduce cost
+        enableBatchProcessing: boolean; // Use batch for non-realtime
+    };
 }
 
 export interface SpeechContext {
@@ -128,18 +134,18 @@ export interface SpeechContext {
 export interface SpeakerDiarizationConfig {
     enableSpeakerDiarization: boolean;
     minSpeakerCount?: number;
-    maxSpeakerCount?: number;
+    maxSpeakerCount?: number; // Reduced default for cost optimization
     speakerTag?: number;
 }
 
 export type RecognitionModel =
+    | 'default'           // Cost-effective baseline model
     | 'command_and_search'
     | 'phone_call'
     | 'video'
-    | 'default'
     | 'medical_conversation'
     | 'medical_dictation'
-    | 'latest_long'
+    | 'latest_long'       // Premium model - use sparingly
     | 'latest_short'
     | string;
 
@@ -151,6 +157,12 @@ export interface SpeechToTextResponse {
     results: any[];
     totalBilledTime: number;
     requestId?: string;
+    costEstimate?: {
+        baseMinutes: number;
+        premiumFeatureCost: number;
+        totalEstimatedCost: number;
+        currency: string;
+    };
 }
 
 export interface SpeechRecognitionResult {
@@ -174,13 +186,18 @@ export interface WordInfo {
 }
 
 // ============================================================================
-// SPEAKER DIARIZATION INTERFACES
+// SPEAKER DIARIZATION INTERFACES - COST OPTIMIZED
 // ============================================================================
 
 export interface DiarizationResult {
     segments: SpeakerSegment[];
     speakerCount: number;
     totalDuration: number;
+    costOptimizationApplied?: {
+        reducedSpeakerLimit: boolean;
+        simplifiedModel: boolean;
+        batchProcessing: boolean;
+    };
 }
 
 export interface SpeakerSegment {
@@ -302,6 +319,9 @@ export interface AudioPreprocessingConfig {
     channels?: {
         convert: 'mono' | 'stereo' | 'keep';
     };
+    // Cost optimization preprocessing
+    silenceRemoval?: boolean; // Remove silence to reduce billable time
+    audioCompression?: boolean; // Compress audio to reduce processing time
 }
 
 export interface PreprocessingResult {
@@ -309,6 +329,11 @@ export interface PreprocessingResult {
     processedFile: AudioFile;
     changes: PreprocessingChange[];
     processingTime: number; // milliseconds
+    costSavings?: {
+        originalDuration: number;
+        processedDuration: number;
+        estimatedSavings: number;
+    };
 }
 
 export interface PreprocessingChange {

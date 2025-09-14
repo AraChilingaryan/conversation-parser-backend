@@ -172,7 +172,13 @@ export class SubscriptionHelper {
     }
 }
 
+// TODO this is filter for recordings, user can separately create tags, then each recording can be assigned multiple tags
+export interface Tag {
 
+}
+
+
+// TODO add here categoiry o
 export interface Recording {
     id: string;
     userId: string; // Link to user
@@ -200,6 +206,9 @@ export interface Recording {
     // Billing
     callPrice: number;
     callPriceUnit: string;
+
+    // todo add here the logic
+    // tag: Tag;
 
     // Metadata
     metadata: {

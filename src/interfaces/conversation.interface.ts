@@ -25,6 +25,18 @@ export interface ConversationMetadata {
     fromNumber?: string;
     toNumber?: string;
     callDirection?: string;
+    // Add cost tracking information
+    costInfo?: ConversationCostInfo;
+}
+
+export interface ConversationCostInfo {
+    billedMinutes: number;
+    estimatedCost: number;
+    currency: string;
+    optimizationsApplied: string[];
+    tier?: string; // Cost optimization tier used
+    premiumFeatures?: string[]; // List of premium features used
+    processingDate: string;
 }
 
 export type AudioFormat = 'wav' | 'mp3' | 'm4a' | 'webm' | 'ogg' | 'mpeg';
@@ -47,6 +59,7 @@ export interface SpeakerCharacteristics {
     estimatedGender?: 'male' | 'female' | 'unknown';
     speakingRate?: number; // Words per minute
     confidenceScore?: number; // How confident we are about this speaker (0-1)
+    averageSegmentLength?: number; // Average length of speaking segments
 }
 
 // ============================================================================
@@ -64,7 +77,7 @@ export interface Message {
     order: number;
     wordCount: number;
     alternatives: string[];
-    analysis?: {  // Add this field
+    analysis?: {  // Enhanced message analysis
         messageTypeConfidence: number;
         indicators: string[];
         sentiment: 'positive' | 'negative' | 'neutral';
@@ -98,6 +111,17 @@ export interface ConversationInsights {
     speakingTimeDistribution: SpeakingTimeDistribution[];
     topics?: string[]; // Detected topics (future enhancement)
     sentiment?: ConversationSentiment; // Sentiment analysis (future enhancement)
+    costOptimizationMetrics?: CostOptimizationMetrics; // Cost-related insights
+}
+
+export interface CostOptimizationMetrics {
+    actualVsEstimatedCost: {
+        estimated: number;
+        actual: number;
+        variance: number; // Percentage difference
+    };
+    optimizationsSaved: number; // Estimated savings from optimizations
+    recommendedTier?: string; // Suggested tier for future similar conversations
 }
 
 export type ConversationFlow =
@@ -153,6 +177,7 @@ export interface ProcessingLogEntry {
     message: string;
     duration?: number; // Processing time in ms
     error?: string;
+    cost?: number; // Cost for this stage (if applicable)
 }
 
 export type ProcessingStage =
@@ -174,6 +199,15 @@ export interface AudioProcessingConfig {
     diarization: DiarizationConfig;
     parsing: ParsingConfig;
     output: OutputConfig;
+    costOptimization?: CostOptimizationConfig; // Add cost optimization config
+}
+
+export interface CostOptimizationConfig {
+    tier: 'BUDGET' | 'BALANCED' | 'QUALITY' | 'PREMIUM';
+    maxBudget?: number;
+    priorityOrder: ('cost' | 'speed' | 'accuracy')[];
+    enableMonitoring: boolean;
+    alertThreshold?: number; // Percentage of budget to trigger alerts
 }
 
 export interface SpeechToTextConfig {
@@ -184,7 +218,7 @@ export interface SpeechToTextConfig {
     enableWordTimeOffsets: boolean;
     profanityFilter: boolean;
     speechContexts?: string[]; // Custom vocabulary
-    model?: 'default' | 'phone_call' | 'video' | 'command_and_search';
+    model?: 'default' | 'phone_call' | 'video' | 'command_and_search' | 'latest_long';
 }
 
 export interface DiarizationConfig {
@@ -210,6 +244,7 @@ export interface OutputConfig {
     includeAlternatives: boolean;
     includeInsights: boolean;
     includeProcessingLog: boolean;
+    includeCostInfo: boolean; // Include cost information in output
     format: 'standard' | 'detailed' | 'minimal';
 }
 
@@ -222,6 +257,11 @@ export interface UploadConversationRequest {
     description?: string;
     language?: string;
     config?: Partial<AudioProcessingConfig>;
+    costOptimization?: {
+        tier?: 'BUDGET' | 'BALANCED' | 'QUALITY' | 'PREMIUM';
+        maxBudget?: number;
+        priorityCost?: 'speed' | 'accuracy' | 'cost';
+    };
 }
 
 export interface UploadConversationResponse {
@@ -229,6 +269,7 @@ export interface UploadConversationResponse {
     status: ConversationStatus;
     message: string;
     estimatedProcessingTime?: number; // in seconds
+    estimatedCost?: number; // Estimated processing cost
     statusCheckUrl: string;
     originalFileName: string;
     fileSize: number;
@@ -241,6 +282,11 @@ export interface ConversationStatusResponse {
     result?: ConversationData;
     error?: ProcessingError;
     estimatedTimeRemaining?: number; // in seconds
+    costInfo?: {
+        estimatedCost: number;
+        actualCost?: number;
+        currency: string;
+    };
 }
 
 export interface ProcessingProgress {
@@ -249,6 +295,7 @@ export interface ProcessingProgress {
     currentStep: string;
     stepsCompleted: number;
     totalSteps: number;
+    estimatedCost?: number; // Running cost estimate
 }
 
 export interface ProcessingError {
@@ -257,6 +304,7 @@ export interface ProcessingError {
     stage: ProcessingStage;
     details?: Record<string, any>;
     retryable: boolean;
+    costIncurred?: number; // Cost incurred before failure
 }
 
 // ============================================================================
@@ -272,6 +320,8 @@ export interface ConversationSummary {
     messageCount: number;
     createdAt: string;
     language: string;
+    estimatedCost?: number; // Add cost to summary
+    actualCost?: number;
 }
 
 export interface ConversationSearchParams {
@@ -286,6 +336,9 @@ export interface ConversationSearchParams {
     minDuration?: number;
     maxDuration?: number;
     searchTerm?: string; // Search in title/content
+    minCost?: number; // Filter by cost range
+    maxCost?: number;
+    costTier?: string; // Filter by optimization tier
 }
 
 export interface ConversationListResponse {
@@ -301,5 +354,18 @@ export interface ConversationListResponse {
     filters: {
         availableLanguages: string[];
         statusCounts: Record<ConversationStatus, number>;
+        costStats?: {
+            totalSpent: number;
+            averageCost: number;
+            monthlySpend: number;
+            currency: string;
+        };
+    };
+    costSummary?: {
+        totalConversations: number;
+        totalCost: number;
+        averageCostPerMinute: number;
+        currency: string;
+        optimizationsSavings: number;
     };
 }
