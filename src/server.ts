@@ -2,17 +2,18 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import {config} from 'dotenv';
+import {healthRoutes} from './routes';
+import {errorHandler, notFoundHandler} from './middleware';
+import {logger} from './utils/logger.util';
+import {databaseService} from './services/database.service';
+import {conversationRoutes} from './routes/conversation.routes';
+import {handleUploadError} from './middleware/upload.middleware';
+import {processingRoutes} from "./routes/processing.routes";
+import {userMetadataRoutes} from "./routes/user-metadata.routes";
 import compression = require('compression');
-import { config } from 'dotenv';
-import { healthRoutes } from './routes';
-import { errorHandler, notFoundHandler } from './middleware';
-import { logger } from './utils/logger.util';
-import { databaseService } from './services/database.service';
-import { conversationRoutes } from './routes/conversation.routes';
-import { handleUploadError } from './middleware/upload.middleware';
-import { processingRoutes } from "./routes/processing.routes";
-import { twilioRoutes } from './routes/twilio.routes';
-import { userMetadataRoutes } from "./routes/user-metadata.routes";
+import {twilioRoutes} from "./routes/twilio.routes";
+import {revenuecatRoutes} from "./routes/revenuecat.routes";
 
 // Load environment variables
 config();
@@ -33,19 +34,20 @@ app.use(cors({
 // Logging
 if (process.env['NODE_ENV'] !== 'test') {
     app.use(morgan('combined', {
-        stream: { write: (message: string) => logger.info(message.trim()) }
+        stream: {write: (message: string) => logger.info(message.trim())}
     }));
 }
 
 // Body parsing
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({limit: '10mb'}));
+app.use(express.urlencoded({extended: true, limit: '10mb'}));
 
 // Routes - SPECIFIC routes must come BEFORE general routes
 app.use('/health', healthRoutes);
 app.use('/api/v1/conversations', conversationRoutes);
 app.use('/api/v1/processing', processingRoutes);
-app.use('/api/v1/webhooks/twilio', twilioRoutes);
+app.use('/api/v1/twilio', twilioRoutes);
+app.use('/api/v1/revenue-cat', revenuecatRoutes);
 app.use('/api/v1', userMetadataRoutes);
 
 app.use('/api/v1', (req, res) => {

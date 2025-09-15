@@ -220,7 +220,7 @@ export class UserRepository extends BaseFirestoreRepository<User> {
      */
     async updateSubscription(userId: string, subscriptionUpdates: Partial<User['subscription']>): Promise<void> {
         try {
-            const user = await this.findById(userId);
+            const user = await this.findByUid(userId);
             if (!user) {
                 throw new Error('User not found');
             }
@@ -231,7 +231,7 @@ export class UserRepository extends BaseFirestoreRepository<User> {
                 lastSyncedFromApp: new Date().toISOString()
             };
 
-            await this.update(userId, {
+            await this.update(user.id, {
                 subscription: updatedSubscription
             } as Partial<User>);
 

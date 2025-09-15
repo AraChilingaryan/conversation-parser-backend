@@ -26,7 +26,7 @@ export const createOrUpdateUser = async (req: Request, res: Response): Promise<v
             return;
         }
 
-        const result = await userMetadataService.createOrUpdateUser(userData);
+        const result = await userMetadataService.createUserBasic(userData);
 
         if (result.success) {
             res.json({
@@ -65,65 +65,6 @@ export const createOrUpdateUser = async (req: Request, res: Response): Promise<v
             error: {
                 code: 'INTERNAL_SERVER_ERROR',
                 message: 'Failed to process user data',
-                timestamp: new Date().toISOString()
-            }
-        } as APIResponse);
-    }
-};
-
-/**
- * Update user subscription from iOS app
- */
-export const updateUserSubscription = async (req: Request, res: Response): Promise<void> => {
-    try {
-        const subscriptionData = req.body;
-
-        if (!subscriptionData.uid || !subscriptionData.subscription) {
-            res.status(400).json({
-                success: false,
-                error: {
-                    code: 'MISSING_SUBSCRIPTION_DATA',
-                    message: 'uid and subscription data are required',
-                    timestamp: new Date().toISOString()
-                }
-            } as APIResponse);
-            return;
-        }
-
-        const result = await userMetadataService.updateUserSubscription(subscriptionData);
-
-        if (result.success) {
-            res.json({
-                success: true,
-                data: {
-                    message: 'Subscription updated successfully',
-                    uid: subscriptionData.uid
-                },
-                metadata: {
-                    requestId: uuidv4(),
-                    timestamp: new Date().toISOString(),
-                    processingTime: 0,
-                    version: '1.0.0'
-                }
-            } as APIResponse);
-        } else {
-            res.status(400).json({
-                success: false,
-                error: {
-                    code: 'SUBSCRIPTION_UPDATE_FAILED',
-                    message: result.error || 'Failed to update subscription',
-                    timestamp: new Date().toISOString()
-                }
-            } as APIResponse);
-        }
-
-    } catch (error) {
-        logger.error('Error in updateUserSubscription:', error);
-        res.status(500).json({
-            success: false,
-            error: {
-                code: 'INTERNAL_SERVER_ERROR',
-                message: 'Failed to update subscription',
                 timestamp: new Date().toISOString()
             }
         } as APIResponse);

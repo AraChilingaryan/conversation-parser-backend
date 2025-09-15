@@ -2,7 +2,6 @@ import {Router} from 'express';
 import {
     createOrUpdateUser,
     getUserByPhone,
-    updateUserSubscription,
     updateUserTwilio,
 } from '../controllers/user-metadata.controller';
 
@@ -10,7 +9,6 @@ const router = Router();
 
 // User metadata management (called by iOS app)
 router.post('/users', createOrUpdateUser);
-router.patch('/users/subscription', updateUserSubscription);
 router.patch('/users/twilio', updateUserTwilio);
 router.get('/users/phone/:phoneNumber', getUserByPhone);
 

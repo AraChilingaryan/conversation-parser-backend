@@ -2,6 +2,7 @@
 
 export interface User {
     uid: string;
+    id: string; // Internal DB ID
     phoneNumber: string;
     isVerified: boolean;
 
@@ -62,11 +63,73 @@ export interface User {
 // Helper functions for subscription logic
 export class SubscriptionHelper {
     /**
+     * Create default subscription for new users
+     */
+    static createDefaultSubscription(): User['subscription'] {
+        return {
+            entitlementId: 'none',
+            isActive: false,
+            expiresAt: new Date().toISOString(),
+            willRenew: false,
+            lastEventType: 'USER_CREATED',
+            status: 'trial',
+            plan: 'basic',
+            trialMinutesUsed: 0,
+            trialMinutesLimit: 30,
+            revenueCatUserId: '',
+            originalAppUserId: '',
+            lastSyncedFromApp: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+    }
+
+    /**
+     * Process RevenueCat webhook data into subscription format
+     */
+    static processRevenueCatWebhook(webhookData: RevenueCatWebhookData): RevenueCatSubscriptionData | null {
+        const event = webhookData.event;
+
+        if (!event.subscriber) {
+            return null;
+        }
+
+        // Find active entitlement
+        const entitlements = event.subscriber.entitlements || {};
+        const activeEntitlement = Object.values(entitlements).find((ent: any) => ent.is_active);
+
+        if (activeEntitlement) {
+            return {
+                entitlementId: activeEntitlement.product_identifier,
+                isActive: activeEntitlement.is_active,
+                expiresAt: activeEntitlement.expires_date,
+                willRenew: activeEntitlement.will_renew,
+                eventType: event.type,
+                revenueCatUserId: event.subscriber.subscriber_id,
+                originalAppUserId: event.subscriber.original_app_user_id,
+                store: activeEntitlement.store,
+                periodType: activeEntitlement.period_type
+            };
+        } else {
+            // No active entitlement (cancellation/expiration)
+            return {
+                entitlementId: 'none',
+                isActive: false,
+                expiresAt: new Date().toISOString(),
+                willRenew: false,
+                eventType: event.type,
+                revenueCatUserId: event.subscriber.subscriber_id,
+                originalAppUserId: event.subscriber.original_app_user_id,
+                store: 'app_store'
+            };
+        }
+    }
+
+    /**
      * Derive backend status from RevenueCat data
      */
-    static deriveStatus(subscription: CreateUserRequest['subscription']): 'trial' | 'active' | 'canceled' | 'expired' | 'grace_period' {
+    static deriveStatusFromRevenueCat(revenueCatData: RevenueCatSubscriptionData): 'trial' | 'active' | 'canceled' | 'expired' | 'grace_period' {
         const now = new Date();
-        const expiresAt = new Date(subscription.expiresAt);
+        const expiresAt = new Date(revenueCatData.expiresAt);
 
         // Check if expired
         if (now > expiresAt) {
@@ -74,22 +137,24 @@ export class SubscriptionHelper {
         }
 
         // Check if active
-        if (subscription.isActive) {
+        if (revenueCatData.isActive) {
             // Check if it's a trial entitlement
-            if (subscription.entitlementId === 'trial' || subscription.entitlementId.includes('trial')) {
+            if (revenueCatData.entitlementId === 'trial' ||
+                revenueCatData.entitlementId.includes('trial') ||
+                revenueCatData.periodType === 'trial') {
                 return 'trial';
             }
             return 'active';
         }
 
         // Check if canceled but still in valid period
-        if (!subscription.willRenew && now <= expiresAt) {
+        if (!revenueCatData.willRenew && now <= expiresAt) {
             return 'canceled'; // Canceled but still has access
         }
 
         // Check for grace period (expired but might renew)
         const gracePeriodEnd = new Date(expiresAt.getTime() + 3 * 24 * 60 * 60 * 1000); // 3 days grace
-        if (now <= gracePeriodEnd && subscription.lastEventType === 'BILLING_ISSUE') {
+        if (now <= gracePeriodEnd && revenueCatData.eventType === 'BILLING_ISSUE') {
             return 'grace_period';
         }
 
@@ -125,6 +190,41 @@ export class SubscriptionHelper {
             default:
                 return { minutes: 30, recordings: 5 };
         }
+    }
+
+    /**
+     * Update subscription from RevenueCat data
+     */
+    static updateSubscriptionFromRevenueCat(
+        currentSubscription: User['subscription'],
+        revenueCatData: RevenueCatSubscriptionData
+    ): User['subscription'] {
+        const derivedStatus = this.deriveStatusFromRevenueCat(revenueCatData);
+        const derivedPlan = this.derivePlan(revenueCatData.entitlementId);
+        const trialLimits = this.getTrialLimits(derivedPlan);
+
+        return {
+            // RevenueCat data
+            entitlementId: revenueCatData.entitlementId,
+            isActive: revenueCatData.isActive,
+            expiresAt: revenueCatData.expiresAt,
+            willRenew: revenueCatData.willRenew,
+            lastEventType: revenueCatData.eventType,
+            revenueCatUserId: revenueCatData.revenueCatUserId,
+            originalAppUserId: revenueCatData.originalAppUserId,
+
+            // Derived backend data
+            status: derivedStatus,
+            plan: derivedPlan,
+
+            // Preserve existing trial usage, update limits
+            trialMinutesUsed: currentSubscription.trialMinutesUsed,
+            trialMinutesLimit: trialLimits.minutes,
+
+            // Sync metadata
+            lastSyncedFromApp: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
     }
 
     /**
@@ -169,6 +269,14 @@ export class SubscriptionHelper {
         }
 
         return { canCall: false, reason: 'Unknown subscription status' };
+    }
+
+    /**
+     * Check if subscription needs update (comparing timestamps)
+     */
+    static needsUpdate(currentSubscription: User['subscription'], webhookTimestamp: number): boolean {
+        const currentUpdated = new Date(currentSubscription.updatedAt).getTime();
+        return webhookTimestamp > currentUpdated;
     }
 }
 
@@ -233,18 +341,70 @@ export interface CreateUserRequest {
         email?: string;
         timezone?: string;
     };
-    subscription: {
-        entitlementId: string;
-        isActive: boolean;
-        expiresAt: string;
-        willRenew: boolean;
-        lastEventType: string;
-        revenueCatUserId?: string;
-        originalAppUserId?: string;
+    twilio?: {
+        assignedNumber?: string;
+        numberSid?: string;
     };
-    twilio: {
-        assignedNumber: string;
-        numberSid: string;
+}
+
+// 3. NEW: Processed subscription data from RevenueCat
+export interface RevenueCatSubscriptionData {
+    entitlementId: string;
+    isActive: boolean;
+    expiresAt: string;
+    willRenew: boolean;
+    eventType: string;
+    revenueCatUserId: string;
+    originalAppUserId: string;
+    store: string;
+    transactionId?: string;
+    periodType?: string;
+}
+
+export interface RevenueCatWebhookData {
+    api_version: string;
+    event: {
+        id: string;
+        timestamp_ms: number;
+        updated_at_ms: number;
+        type: string; // "INITIAL_PURCHASE", "RENEWAL", "CANCELLATION", etc.
+        app_user_id: string;
+        aliases?: string[];
+        original_app_user_id: string;
+        subscriber_attributes?: Record<string, any>;
+        subscriber?: {
+            subscriber_id: string;
+            original_app_user_id: string;
+            entitlements: Record<string, {
+                expires_date: string;
+                purchase_date: string;
+                product_identifier: string;
+                is_active: boolean;
+                will_renew: boolean;
+                period_type: string;
+                store: string;
+                unsubscribe_detected_at?: string;
+                billing_issue_detected_at?: string;
+            }>;
+            subscriptions: Record<string, {
+                id: string;
+                store: string;
+                transaction_id: string;
+                original_transaction_id: string;
+                purchased_at_ms: number;
+                renewal_number: number;
+                presented_offering_id?: string;
+                expires_date: string;
+                auto_resume_date?: string;
+                is_sandbox: boolean;
+                ownership_type: string;
+                period_type: string;
+                product_identifier: string;
+                store_transaction_id: string;
+                unsubscribe_detected_at?: string;
+                billing_issue_detected_at?: string;
+            }>;
+        };
     };
 }
 

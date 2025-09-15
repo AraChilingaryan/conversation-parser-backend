@@ -2,6 +2,7 @@
 
 import admin from 'firebase-admin';
 import { logger } from '../utils/logger.util';
+import {getFirestore} from "firebase-admin/firestore";
 
 /**
  * Firebase/Firestore database configuration and initialization
@@ -11,6 +12,7 @@ interface FirebaseConfig {
     projectId: string;
     serviceAccountPath: string;
     storageBucket: string;
+    databaseId?: string;
 }
 
 class DatabaseConfig {
@@ -31,6 +33,7 @@ class DatabaseConfig {
     /**
      * Initialize Firebase Admin SDK
      */
+        // 3. Update your initialize method to use the databaseId
     initialize = async (): Promise<void> => {
         if (this._initialized) {
             logger.debug('Firebase already initialized');
@@ -51,8 +54,16 @@ class DatabaseConfig {
                 logger.info('Firebase Admin SDK initialized successfully');
             }
 
-            // Initialize Firestore with settings
-            this._firestore = admin.firestore();
+            // Use getFirestore with database ID - this is the correct way
+            if (config.databaseId) {
+                logger.info(`Using Firestore database ID: ${config.databaseId}`);
+                this._firestore = getFirestore(admin.app(), config.databaseId);
+                logger.info(`Connected to custom Firestore database: ${config.databaseId}`);
+            } else {
+                this._firestore = getFirestore(admin.app());
+                logger.info('Connected to default Firestore database');
+            }
+
             this._firestore.settings({
                 ignoreUndefinedProperties: true,
             });
@@ -115,11 +126,12 @@ class DatabaseConfig {
     /**
      * Get configuration from environment variables
      */
+// 2. Update your getConfig method
     private getConfig(): FirebaseConfig {
         const projectId = process.env['GOOGLE_CLOUD_PROJECT_ID'];
         const serviceAccountPath = process.env['GOOGLE_APPLICATION_CREDENTIALS'];
-
         const storageBucket = process.env['FIREBASE_STORAGE_BUCKET'];
+        const databaseId = process.env['FIRESTORE_DATABASE_ID']; // Add this line
 
         if (!projectId) {
             throw new Error('GOOGLE_CLOUD_PROJECT_ID environment variable is required');
@@ -133,10 +145,16 @@ class DatabaseConfig {
             throw new Error('FIREBASE_STORAGE_BUCKET environment variable is required');
         }
 
+        // Make databaseId required since you don't have a default database
+        if (!databaseId) {
+            throw new Error('FIRESTORE_DATABASE_ID environment variable is required');
+        }
+
         return {
             projectId,
             serviceAccountPath,
             storageBucket,
+            databaseId, // Add this line
         };
     }
 

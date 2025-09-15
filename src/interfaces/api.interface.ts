@@ -23,6 +23,61 @@ export interface APIError {
     requestId?: string;
 }
 
+export enum APIErrorCodes {
+    // Authentication & Authorization
+    UNAUTHORIZED = 'UNAUTHORIZED',
+    FORBIDDEN = 'FORBIDDEN',
+    TOKEN_EXPIRED = 'TOKEN_EXPIRED',
+    INVALID_CREDENTIALS = 'INVALID_CREDENTIALS',
+
+    // User Management
+    USER_NOT_FOUND = 'USER_NOT_FOUND',
+    USER_ALREADY_EXISTS = 'USER_ALREADY_EXISTS',
+    USER_VALIDATION_ERROR = 'USER_VALIDATION_ERROR',
+
+    // RevenueCat Webhook Specific
+    REVENUECAT_WEBHOOK_INVALID = 'REVENUECAT_WEBHOOK_INVALID',
+    REVENUECAT_PROCESSING_ERROR = 'REVENUECAT_PROCESSING_ERROR',
+    SUBSCRIPTION_UPDATE_FAILED = 'SUBSCRIPTION_UPDATE_FAILED',
+
+    // General Request Errors
+    BAD_REQUEST = 'BAD_REQUEST',
+    VALIDATION_ERROR = 'VALIDATION_ERROR',
+    MISSING_REQUIRED_FIELD = 'MISSING_REQUIRED_FIELD',
+    INVALID_REQUEST_FORMAT = 'INVALID_REQUEST_FORMAT',
+
+    // Database Errors
+    DATABASE_ERROR = 'DATABASE_ERROR',
+    TRANSACTION_FAILED = 'TRANSACTION_FAILED',
+    DUPLICATE_ENTRY = 'DUPLICATE_ENTRY',
+
+    // Server Errors
+    INTERNAL_SERVER_ERROR = 'INTERNAL_SERVER_ERROR',
+    SERVICE_UNAVAILABLE = 'SERVICE_UNAVAILABLE',
+    TIMEOUT_ERROR = 'TIMEOUT_ERROR',
+
+    // External Service Errors
+    THIRD_PARTY_SERVICE_ERROR = 'THIRD_PARTY_SERVICE_ERROR',
+    PAYMENT_PROCESSING_ERROR = 'PAYMENT_PROCESSING_ERROR',
+
+    // Rate Limiting
+    RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
+    TOO_MANY_REQUESTS = 'TOO_MANY_REQUESTS',
+
+    // Resource Errors
+    RESOURCE_NOT_FOUND = 'RESOURCE_NOT_FOUND',
+    RESOURCE_CONFLICT = 'RESOURCE_CONFLICT',
+    INSUFFICIENT_PERMISSIONS = 'INSUFFICIENT_PERMISSIONS'
+}
+
+export interface APIError {
+    code: string;
+    message: string;
+    details?: Record<string, any>;
+    timestamp: string;
+    requestId?: string;
+}
+
 export interface ResponseMetadata {
     requestId: string;
     timestamp: string;
