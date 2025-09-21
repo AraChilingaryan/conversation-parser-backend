@@ -1,8 +1,8 @@
-import { Request, Response } from 'express';
-import { twilioIntegrationService } from '../services/twilio-integration.service';
-import { logger } from '../utils/logger.util';
-import { v4 as uuidv4 } from 'uuid';
-import type { APIResponse } from '../interfaces/api.interface';
+import {Request, Response} from 'express';
+import {twilioIntegrationService} from '../services/twilio-integration.service';
+import {logger} from '../utils/logger.util';
+import {v4 as uuidv4} from 'uuid';
+import type {APIResponse} from '../interfaces/api.interface';
 import {CallAuthorizationRequest} from "../interfaces/user.interface";
 import {userMetadataService} from "../services/user-metadata.service";
 
@@ -41,27 +41,24 @@ export const handleRecordingWebhook = async (req: Request, res: Response): Promi
             return;
         }
 
-        // Process the recording
-        const result = await twilioIntegrationService.processRecordingWebhook({
+        // Store recording metadata (simple approach)
+        const result = await twilioIntegrationService.storeRecordingMetadata({
             CallSid,
             RecordingSid,
             RecordingUrl,
             RecordingDuration
-        });
-
-        // TODO check usage compare with await userMetadataService.processRecordingWebhook();
-        // await twilioIntegrationService.processRecordingWebhook({);
+        }, req.body);
 
         if (result.success) {
-            logger.info(`Twilio recording processed successfully: ${result.conversationId}`);
+            logger.info(`Recording metadata stored successfully: ${result.recordingId}`);
 
             res.json({
                 success: true,
                 data: {
-                    conversationId: result.conversationId,
-                    message: 'Recording processed successfully',
-                    status: 'uploaded',
-                    processingStatus: 'ready_for_transcription'
+                    recordingId: result.recordingId,
+                    message: 'Recording metadata stored successfully',
+                    status: 'stored',
+                    processingStatus: 'ready_for_processing'
                 },
                 metadata: {
                     requestId: uuidv4(),
@@ -72,13 +69,13 @@ export const handleRecordingWebhook = async (req: Request, res: Response): Promi
                 }
             } as APIResponse);
         } else {
-            logger.error(`Twilio recording processing failed: ${result.error}`);
+            logger.error(`Recording metadata storage failed: ${result.error}`);
 
             res.status(500).json({
                 success: false,
                 error: {
-                    code: 'PROCESSING_FAILED',
-                    message: result.error || 'Failed to process Twilio recording',
+                    code: 'STORAGE_FAILED',
+                    message: result.error || 'Failed to store recording metadata',
                     timestamp: new Date().toISOString()
                 }
             } as APIResponse);
@@ -176,14 +173,14 @@ export const getTwilioConversations = async (req: Request, res: Response): Promi
  */
 export const authorizeCall = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { From: fromNumber, To: toNumber, CallSid: callSid } = req.body;
+        const {From: fromNumber, To: toNumber, CallSid: callSid} = req.body;
 
         const authRequest: CallAuthorizationRequest = {
             fromNumber,
             toNumber,
             callSid
         };
-        logger.info('Call authorization request:', { fromNumber, toNumber, callSid });
+        logger.info('Call authorization request:', {fromNumber, toNumber, callSid});
 
         const authResult = await userMetadataService.authorizeCall(authRequest);
 
@@ -192,9 +189,9 @@ export const authorizeCall = async (req: Request, res: Response): Promise<void> 
             const twiml = `<?xml version="1.0" encoding="UTF-8"?>
         <Response>
           <Say>Welcome to your conversation recorder. This call will be recorded.</Say>
-          <Record action="/api/v1/webhooks/twilio/recording" 
+          <Record action="/api/v1/twilio/recording" 
                   method="POST" 
-                  recordingStatusCallback="/api/v1/webhooks/twilio/recording"
+                  recordingStatusCallback="/api/v1/twilio/recording"
                   maxLength="3600"
                   finishOnKey="#" />
         </Response>`;

@@ -7,6 +7,9 @@ import { storageService } from './storage.service';
 import { processingService } from './processing.service';
 import type { ConversationData } from '../interfaces/conversation.interface';
 import { v4 as uuidv4 } from 'uuid';
+import {Recording} from "@/interfaces/user.interface";
+import {userMetadataService} from "../services/user-metadata.service";
+import {recordingRepository} from "../repositories/recording.repository";
 
 export interface TwilioRecordingData {
     CallSid: string;
@@ -39,6 +42,102 @@ export class TwilioIntegrationService {
             TwilioIntegrationService.instance = new TwilioIntegrationService();
         }
         return TwilioIntegrationService.instance;
+    }
+
+    /**
+     * Simple method to store recording metadata in Firebase
+     */
+    async storeRecordingMetadata(twilioData: TwilioRecordingData, webhookBody: any): Promise<{
+        success: boolean;
+        recordingId?: string;
+        error?: string;
+    }> {
+        try {
+            logger.info(`Storing recording metadata for CallSid: ${twilioData.CallSid}`);
+
+            const callData = await this.fetchTwilioCallData(twilioData.CallSid);
+
+            const fromNumber = callData.from;
+            const toNumber = callData.to;
+            const { AccountSid } = webhookBody;
+
+            // Find user by their phone number (the caller)
+            const userResult = await userMetadataService.getUserByPhone(fromNumber);
+
+            if (!userResult.success || !userResult.user) {
+                logger.warn(`No user found for phone number: ${fromNumber}`);
+                return {
+                    success: false,
+                    error: `No user found for phone number: ${fromNumber}`
+                };
+            }
+
+            const user = userResult.user;
+
+            // Calculate call timing
+            const recordingDuration = parseInt(twilioData.RecordingDuration) || 0;
+            const callDuration = callData.duration ? parseInt(callData.duration) : 0;
+            const callStartTime = callData.start_time || new Date().toISOString();
+            const callEndTime = callData.end_time || new Date().toISOString();
+            const callPrice = Math.abs(parseFloat(callData.price || '0')); // Make price positive
+            const callPriceUnit = callData.price_unit || 'USD';
+
+            // Create Recording object with simple data mapping
+            const recording: Omit<Recording, 'id' | 'createdAt' | 'updatedAt'> = {
+                userId: user.uid,
+
+                // Twilio data (from webhook)
+                callSid: twilioData.CallSid,
+                recordingSid: twilioData.RecordingSid,
+                recordingUrl: twilioData.RecordingUrl,
+                recordingDuration: recordingDuration,
+
+                // Call details (from Twilio API)
+                fromNumber: fromNumber,
+                toNumber: toNumber,
+                callDirection: callData.direction as 'inbound' | 'outbound',
+                callStartTime: callStartTime,
+                callEndTime: callEndTime,
+                callStatus: callData.status,
+                callDuration: callDuration,
+
+                // Processing status (defaults)
+                processed: false,
+                transcriptionStatus: 'pending',
+                conversationId: undefined,
+
+                // Billing (from Twilio API)
+                callPrice: callPrice,
+                callPriceUnit: callPriceUnit,
+
+                // Metadata
+                metadata: {
+                    twilioAccountSid: AccountSid,
+                    callDirection: callData.direction,
+                    parentCallSid: callData.parent_call_sid || undefined
+                },
+
+                // Flags
+                deleted: false
+            };
+
+            // Store in Firebase using repository
+            await recordingRepository.createRecording(recording as Recording);
+
+            logger.info(`Recording metadata stored successfully for CallSid: ${twilioData.CallSid}`);
+
+            return {
+                success: true,
+                recordingId: twilioData.CallSid
+            };
+
+        } catch (error) {
+            logger.error('Failed to store recording metadata:', error);
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error'
+            };
+        }
     }
 
     /**
