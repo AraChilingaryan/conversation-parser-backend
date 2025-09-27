@@ -16,7 +16,8 @@ import type { APIResponse } from '../interfaces/api.interface';
 /**
  * Upload conversation audio file
  */
-export const uploadConversation = async (req: Request, res: Response): Promise<void> => {
+// TOdo: Correct this method to use Recording terminology.
+export const uploadRecording = async (req: Request, res: Response): Promise<void> => {
     try {
         const audioFile = req.file;
         const { title, description, language = 'en-US' }: UploadConversationRequest = req.body;
@@ -90,6 +91,7 @@ export const uploadConversation = async (req: Request, res: Response): Promise<v
         // Create conversation record
         const conversationData: ConversationData = {
             conversationId,
+            recordingId: conversationId,
             status: 'uploaded',
             metadata: {
                 title: title || `Conversation ${new Date().toLocaleDateString()}`,

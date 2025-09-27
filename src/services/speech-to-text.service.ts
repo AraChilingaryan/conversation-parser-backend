@@ -11,7 +11,7 @@ import type {
 import type {ConversationData} from '../interfaces/conversation.interface';
 
 /**
- * Cost-Optimized Speech-to-Text service using Google Cloud Speech-to-Text API
+ * Enhanced Speech-to-Text service with Twilio audio buffer support
  */
 export class SpeechToTextService {
     private static instance: SpeechToTextService;
@@ -33,7 +33,86 @@ export class SpeechToTextService {
     }
 
     /**
-     * Process audio file with cost optimization
+     * Process audio buffer from Twilio recording
+     */
+    async processAudioBuffer(audioBuffer: Buffer, config: SpeechRecognitionConfig): Promise<SpeechToTextResponse> {
+        try {
+            logger.info(`Starting speech-to-text processing for audio buffer (${audioBuffer.length} bytes)`);
+
+            // Apply cost optimization settings
+            const optimizedConfig = this.applyCostOptimization(config);
+
+            const request = {
+                audio: {
+                    content: audioBuffer.toString('base64'), // Google expects base64 encoded audio
+                },
+                config: {
+                    encoding: optimizedConfig.encoding as any,
+                    sampleRateHertz: optimizedConfig.sampleRateHertz,
+                    languageCode: optimizedConfig.languageCode,
+                    alternativeLanguageCodes: optimizedConfig.alternativeLanguageCodes,
+                    maxAlternatives: optimizedConfig.maxAlternatives || 1,
+                    profanityFilter: optimizedConfig.profanityFilter || false,
+                    speechContexts: optimizedConfig.speechContexts || [],
+                    enableWordTimeOffsets: optimizedConfig.enableWordTimeOffsets || false,
+                    enableAutomaticPunctuation: optimizedConfig.enableAutomaticPunctuation !== false,
+                    diarizationConfig: optimizedConfig.diarizationConfig,
+                    model: optimizedConfig.model as any,
+                    useEnhanced: optimizedConfig.useEnhanced || false
+                },
+            };
+
+            logger.debug('Speech-to-Text configuration for buffer processing:', {
+                encoding: request.config.encoding,
+                sampleRate: request.config.sampleRateHertz,
+                language: request.config.languageCode,
+                diarization: request.config.diarizationConfig?.enableSpeakerDiarization,
+                audioSize: audioBuffer.length,
+                costOptimization: optimizedConfig.costOptimization
+            });
+
+            // For small audio files, use synchronous recognition
+            // For larger files (>1MB or >60 seconds), use long running recognition
+            const useAsyncProcessing = audioBuffer.length > 1024 * 1024 || (config.sampleRateHertz && config.sampleRateHertz * 60 < audioBuffer.length / 2);
+
+            let response;
+            if (useAsyncProcessing) {
+                logger.info('Using long running recognition for large audio buffer');
+                const [operation] = await this.speechClient.longRunningRecognize(request);
+                [response] = await operation.promise();
+            } else {
+                logger.info('Using synchronous recognition for small audio buffer');
+                [response] = await this.speechClient.recognize(request);
+            }
+
+            if (!response.results || response.results.length === 0) {
+                logger.warn('No speech recognition results returned from buffer processing');
+                return {
+                    results: [],
+                    totalBilledTime: 0,
+                    costEstimate: this.calculateCostEstimate(0, optimizedConfig)
+                };
+            }
+
+            const billedTime = this.parseDuration(response.totalBilledTime);
+
+            logger.info(`Speech-to-text buffer processing completed. Found ${response.results.length} result segments`);
+            logger.info(`Billed time: ${billedTime} minutes, Estimated cost: $${this.calculateCostEstimate(billedTime, optimizedConfig).totalEstimatedCost}`);
+
+            return {
+                results: response.results || [],
+                totalBilledTime: billedTime,
+                costEstimate: this.calculateCostEstimate(billedTime, optimizedConfig)
+            };
+
+        } catch (error) {
+            logger.error('Speech-to-Text buffer processing failed:', error);
+            throw new Error(`Speech processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    /**
+     * Process audio file with cost optimization (existing method - keep for GCS files)
      */
     async processAudioFile(audioUrl: string, config: SpeechRecognitionConfig): Promise<SpeechToTextResponse> {
         try {
@@ -51,14 +130,14 @@ export class SpeechToTextService {
                     sampleRateHertz: optimizedConfig.sampleRateHertz,
                     languageCode: optimizedConfig.languageCode,
                     alternativeLanguageCodes: optimizedConfig.alternativeLanguageCodes,
-                    maxAlternatives: optimizedConfig.maxAlternatives || 1, // Limit alternatives for cost
+                    maxAlternatives: optimizedConfig.maxAlternatives || 1,
                     profanityFilter: optimizedConfig.profanityFilter || false,
-                    speechContexts: optimizedConfig.speechContexts || [], // Minimize context for cost
-                    enableWordTimeOffsets: optimizedConfig.enableWordTimeOffsets || false, // Disable if not critical
-                    enableAutomaticPunctuation: optimizedConfig.enableAutomaticPunctuation !== false, // Keep this as it's usually free
+                    speechContexts: optimizedConfig.speechContexts || [],
+                    enableWordTimeOffsets: optimizedConfig.enableWordTimeOffsets || false,
+                    enableAutomaticPunctuation: optimizedConfig.enableAutomaticPunctuation !== false,
                     diarizationConfig: optimizedConfig.diarizationConfig,
                     model: optimizedConfig.model as any,
-                    useEnhanced: optimizedConfig.useEnhanced || false // Disable enhanced by default
+                    useEnhanced: optimizedConfig.useEnhanced || false
                 },
             };
 
@@ -106,6 +185,33 @@ export class SpeechToTextService {
     }
 
     /**
+     * Determine appropriate audio encoding for Twilio recordings
+     */
+    getTwilioAudioEncoding(): { encoding: AudioEncoding; sampleRate: number } {
+        // Twilio voice recordings are typically:
+        // - WAV format (LINEAR16)
+        // - 8kHz sample rate for phone calls
+        // - Mono channel
+        return {
+            encoding: 'LINEAR16' as AudioEncoding,
+            sampleRate: 8000
+        };
+    }
+
+    /**
+     * Optimize Twilio audio buffer for processing
+     */
+    optimizeTwilioBuffer(audioBuffer: Buffer): Buffer {
+        // For now, return as-is
+        // Future optimizations could include:
+        // - Audio format conversion
+        // - Noise reduction
+        // - Volume normalization
+        logger.debug(`Twilio audio buffer size: ${audioBuffer.length} bytes`);
+        return audioBuffer;
+    }
+
+    /**
      * Apply cost optimization settings to config
      */
     private applyCostOptimization(config: SpeechRecognitionConfig): SpeechRecognitionConfig {
@@ -115,26 +221,26 @@ export class SpeechToTextService {
         if (!optimized.costOptimization) {
             optimized.costOptimization = {
                 enableDataLogging: true, // Cheaper pricing tier
-                maxSpeakers: 4, // Reasonable limit for most conversations
+                maxSpeakers: 6, // Increased from 4 to allow better speaker detection
                 enableBatchProcessing: true // Use batch when possible
             };
         }
 
         // Apply optimizations
         if (optimized.costOptimization.enableDataLogging) {
-            // Use cheaper pricing tier (allows Google to use data for improvements)
             logger.info('Using data logging for reduced pricing');
         }
 
-        // Optimize speaker diarization
+        // Optimize speaker diarization - but don't be too restrictive
         if (optimized.diarizationConfig?.enableSpeakerDiarization) {
-            const maxSpeakers = optimized.costOptimization.maxSpeakers || 4;
+            const maxSpeakers = optimized.costOptimization.maxSpeakers || 6;
             optimized.diarizationConfig = {
                 ...optimized.diarizationConfig,
-                maxSpeakerCount: Math.min(optimized.diarizationConfig.maxSpeakerCount || 6, maxSpeakers),
+                // Don't artificially limit if the original config had higher limits
+                maxSpeakerCount: Math.max(optimized.diarizationConfig.maxSpeakerCount || 6, maxSpeakers),
                 minSpeakerCount: optimized.diarizationConfig.minSpeakerCount || 1
             };
-            logger.info(`Limited max speakers to ${optimized.diarizationConfig.maxSpeakerCount} for cost optimization`);
+            logger.info(`Max speakers set to ${optimized.diarizationConfig.maxSpeakerCount} for speaker detection`);
         }
 
         // Use cost-effective model unless premium is specifically requested
@@ -175,7 +281,7 @@ export class SpeechToTextService {
 
         // Calculate premium feature costs
         if (config.diarizationConfig?.enableSpeakerDiarization) {
-            premiumCost += baseCost * 0.6; // 60% premium for diarization (reduced from typical 80%)
+            premiumCost += baseCost * 0.6; // 60% premium for diarization
         }
 
         if (config.useEnhanced) {
@@ -341,16 +447,15 @@ export class SpeechToTextService {
         return { speakers, messages };
     }
 
-    /**
-     * Get audio encoding from file format
-     */
+    // Keep all your existing helper methods...
+
     getAudioEncoding(mimeType: string, format: string): AudioEncoding {
         const encodingMap: Record<string, AudioEncoding> = {
             'audio/wav': 'LINEAR16',
             'audio/wave': 'LINEAR16',
             'audio/mp3': 'MP3',
             'audio/mpeg': 'MP3',
-            'audio/m4a': 'MP3', // Google treats M4A as MP3
+            'audio/m4a': 'MP3',
             'audio/webm': 'WEBM_OPUS',
             'audio/ogg': 'OGG_OPUS'
         };
@@ -364,23 +469,17 @@ export class SpeechToTextService {
         return encoding;
     }
 
-    /**
-     * Estimate sample rate from audio metadata with cost consideration
-     */
     estimateSampleRate(metadata: any): number {
-        // Use lower sample rates where possible for cost optimization
         const defaultRates: Record<string, number> = {
-            'wav': 16000,  // Reduced from 44100 for cost optimization
-            'mp3': 16000,  // Reduced from 44100
-            'm4a': 16000,  // Reduced from 44100
-            'webm': 16000, // Reduced from 48000
-            'ogg': 16000   // Reduced from 44100
+            'wav': 16000,
+            'mp3': 16000,
+            'm4a': 16000,
+            'webm': 16000,
+            'ogg': 16000
         };
 
         const estimatedRate = metadata.sampleRate || defaultRates[metadata.format] || 16000;
-
-        // Cap sample rate for cost optimization (higher rates cost more)
-        const maxRate = 16000; // Good balance of quality and cost
+        const maxRate = 16000;
         const optimizedRate = Math.min(estimatedRate, maxRate);
 
         if (optimizedRate < estimatedRate) {
@@ -391,7 +490,6 @@ export class SpeechToTextService {
     }
 
     // Private helper methods
-
     private parseTime(time: any): number {
         if (!time) return 0;
         if (typeof time === 'number') return time;
@@ -405,18 +503,15 @@ export class SpeechToTextService {
         if (!duration) return 0;
         if (typeof duration === 'number') return duration;
 
-        // Handle Google Duration object
         if (duration.seconds !== undefined) {
             return Number(duration.seconds) + (Number(duration.nanos) || 0) / 1e9;
         }
 
-        // Handle string representation
         if (typeof duration === 'string') {
             const parsed = parseFloat(duration);
             return isNaN(parsed) ? 0 : parsed;
         }
 
-        // Handle Long type from protobuf
         if (duration.toNumber && typeof duration.toNumber === 'function') {
             return duration.toNumber();
         }

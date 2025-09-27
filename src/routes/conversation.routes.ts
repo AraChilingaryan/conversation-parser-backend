@@ -3,7 +3,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import {
-    uploadConversation,
+    uploadRecording,
     getConversation,
     getConversationStatus,
     listConversations, resetConversationStatus
@@ -43,7 +43,7 @@ const upload = multer({
  * @desc Upload conversation audio file
  * @access Public
  */
-router.post('/upload', upload.single('audio'), uploadConversation);
+router.post('/upload', upload.single('audio'), uploadRecording);
 
 /**
  * @route GET /api/v1/conversations

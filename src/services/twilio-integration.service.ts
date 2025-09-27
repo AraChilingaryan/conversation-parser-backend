@@ -1,12 +1,8 @@
 // src/services/twilio-integration.service.ts
 
 import axios from 'axios';
-import { logger } from '../utils/logger.util';
-import { databaseService } from './database.service';
-import { storageService } from './storage.service';
-import { processingService } from './processing.service';
-import type { ConversationData } from '../interfaces/conversation.interface';
-import { v4 as uuidv4 } from 'uuid';
+import {logger} from '../utils/logger.util';
+import {processingService} from './processing.service';
 import {Recording} from "@/interfaces/user.interface";
 import {userMetadataService} from "../services/user-metadata.service";
 import {recordingRepository} from "../repositories/recording.repository";
@@ -35,7 +31,8 @@ export interface TwilioCallData {
 export class TwilioIntegrationService {
     private static instance: TwilioIntegrationService;
 
-    private constructor() {}
+    private constructor() {
+    }
 
     static getInstance(): TwilioIntegrationService {
         if (!TwilioIntegrationService.instance) {
@@ -59,7 +56,7 @@ export class TwilioIntegrationService {
 
             const fromNumber = callData.from;
             const toNumber = callData.to;
-            const { AccountSid } = webhookBody;
+            const {AccountSid} = webhookBody;
 
             // Find user by their phone number (the caller)
             const userResult = await userMetadataService.getUserByPhone(fromNumber);
@@ -141,130 +138,6 @@ export class TwilioIntegrationService {
     }
 
     /**
-     * Process Twilio recording webhook
-     */
-    async processRecordingWebhook(twilioData: TwilioRecordingData): Promise<{
-        success: boolean;
-        conversationId?: string;
-        error?: string;
-    }> {
-        try {
-            logger.info(`Processing Twilio recording: ${twilioData.CallSid}`);
-
-            // Validate required fields
-            if (!twilioData.CallSid || !twilioData.RecordingUrl) {
-                throw new Error('Missing required fields: CallSid and RecordingUrl');
-            }
-
-            // Fetch call details from Twilio
-            const callData = await this.fetchTwilioCallData(twilioData.CallSid);
-
-            // Download and store the recording
-            const conversationId = uuidv4();
-            const audioBuffer = await this.downloadRecording(twilioData.RecordingUrl);
-
-            // Upload to our storage
-            const uploadResult = await storageService.uploadAudioFile(conversationId, {
-                buffer: audioBuffer,
-                originalName: `twilio_recording_${twilioData.RecordingSid}.wav`,
-                mimeType: 'audio/wav',
-                size: audioBuffer.length,
-                duration: parseInt(twilioData.RecordingDuration) || 0
-            });
-
-            if (!uploadResult.success) {
-                throw new Error(`Failed to upload recording: ${uploadResult.error?.message}`);
-            }
-
-            // Create conversation record with Twilio metadata
-            const conversationData: ConversationData = {
-                conversationId,
-                status: 'uploaded',
-                metadata: {
-                    title: `Call Recording: ${this.formatPhoneNumber(callData.from)} → ${this.formatPhoneNumber(callData.to)}`,
-                    description: `Twilio call recording from ${callData.start_time || 'unknown time'}`,
-                    duration: parseInt(twilioData.RecordingDuration) || 0,
-                    language: 'en-US', // Default, could be configurable
-                    recordingDate: callData.start_time ? new Date(callData.start_time).toISOString() : new Date().toISOString(),
-                    processingDate: new Date().toISOString(),
-                    confidence: 0,
-                    fileSize: audioBuffer.length,
-                    originalFileName: `twilio_recording_${twilioData.RecordingSid}.wav`,
-                    audioFormat: 'wav',
-                    // Twilio-specific metadata
-                    source: 'twilio',
-                    twilioCallSid: twilioData.CallSid,
-                    twilioRecordingSid: twilioData.RecordingSid,
-                    fromNumber: callData.from,
-                    toNumber: callData.to,
-                    callDirection: callData.direction
-                },
-                speakers: [],
-                messages: [],
-                insights: {
-                    totalMessages: 0,
-                    questionCount: 0,
-                    responseCount: 0,
-                    statementCount: 0,
-                    averageMessageLength: 0,
-                    longestMessage: { messageId: '', length: 0 },
-                    conversationFlow: 'unknown',
-                    speakingTimeDistribution: []
-                },
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                processingLog: [
-                    {
-                        timestamp: new Date().toISOString(),
-                        stage: 'upload',
-                        message: 'Twilio recording received and stored',
-                        duration: parseInt(twilioData.RecordingDuration) || 0
-                    }
-                ]
-            };
-
-            // Save to database
-            await databaseService.conversations.createWithId(conversationId, conversationData);
-
-            // Add validation log
-            await databaseService.conversations.addProcessingLogEntry(conversationId, {
-                timestamp: new Date().toISOString(),
-                stage: 'validation',
-                message: 'Twilio recording validated and ready for processing',
-                duration: parseInt(twilioData.RecordingDuration) || 0
-            });
-
-            logger.info(`Twilio recording processed successfully: ${conversationId}`);
-
-            // Optionally trigger automatic processing
-            if (process.env.AUTO_PROCESS_TWILIO_RECORDINGS === 'true') {
-                // Start processing in background
-                this.triggerBackgroundProcessing(conversationId);
-            }
-
-            return {
-                success: true,
-                conversationId
-            };
-
-        } catch (error) {
-            logger.error('Failed to process Twilio recording:', error);
-
-            // Save error for debugging
-            try {
-                await this.saveErrorRecord(twilioData, error);
-            } catch (saveError) {
-                logger.error('Failed to save error record:', saveError);
-            }
-
-            return {
-                success: false,
-                error: error instanceof Error ? error.message : 'Unknown error'
-            };
-        }
-    }
-
-    /**
      * Fetch call details from Twilio API
      */
     private async fetchTwilioCallData(callSid: string): Promise<TwilioCallData> {
@@ -297,7 +170,7 @@ export class TwilioIntegrationService {
     /**
      * Download recording from Twilio
      */
-    private async downloadRecording(recordingUrl: string): Promise<Buffer> {
+    public async downloadRecording(recordingUrl: string): Promise<Buffer> {
         const accountSid = process.env.TWILIO_ACCOUNT_SID;
         const authToken = process.env.TWILIO_AUTH_TOKEN;
 

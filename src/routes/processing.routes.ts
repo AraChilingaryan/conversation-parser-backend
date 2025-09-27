@@ -3,7 +3,7 @@ import { Router } from 'express';
 import {
     triggerProcessing,
     getProcessingProgress,
-    getProcessingStatus
+    getProcessingStatus, processRecording, getRecordingProgress
 } from '../controllers/processing.controller';
 
 const router = Router();
@@ -13,14 +13,14 @@ const router = Router();
  * @desc Manually trigger processing for a specific conversation
  * @access Admin/Testing
  */
-router.post('/conversations/:conversationId/process', triggerProcessing);
+router.post('/recordings/:recordingId/process', processRecording);
 
 /**
  * @route GET /api/processing/conversations/:conversationId/progress
  * @desc Get processing progress for a specific conversation
  * @access Public
  */
-router.get('/conversations/:conversationId/progress', getProcessingProgress);
+router.get('/recordings/:recordingId/progress', getRecordingProgress);
 
 /**
  * @route GET /api/processing/status

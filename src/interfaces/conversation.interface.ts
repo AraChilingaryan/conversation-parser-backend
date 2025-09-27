@@ -154,6 +154,7 @@ export interface ConversationSentiment {
 
 export interface ConversationData {
     conversationId: string;
+    recordingId: string;
     status: ConversationStatus;
     metadata: ConversationMetadata;
     speakers: Speaker[];
