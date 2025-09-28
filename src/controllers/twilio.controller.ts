@@ -182,13 +182,13 @@ export const authorizeCall = async (req: Request, res: Response): Promise<void> 
         };
         logger.info('Call authorization request:', {fromNumber, toNumber, callSid});
 
-        // const authResult = await userMetadataService.authorizeCall(authRequest);
-        const authResult = {
-                authorized: true,
-                userId: 'test_user_1234',
-                remainingMinutes: 120,
-                reason: 'Authorized'
-            };
+        const authResult = await userMetadataService.authorizeCall(authRequest);
+        // const authResult = {
+        //         authorized: true,
+        //         userId: 'test_user_1234',
+        //         remainingMinutes: 120,
+        //         reason: 'Authorized'
+        //     }; // enable for testing
 
         if (authResult.authorized) {
             // Return TwiML to allow the call and record it

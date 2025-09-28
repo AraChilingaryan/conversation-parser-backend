@@ -111,7 +111,8 @@ export class TwilioIntegrationService {
                 metadata: {
                     twilioAccountSid: AccountSid,
                     callDirection: callData.direction,
-                    parentCallSid: callData.parent_call_sid || undefined
+                    parentCallSid: callData.parent_call_sid || undefined,
+                    source: 'twilio'
                 },
 
                 // Flags

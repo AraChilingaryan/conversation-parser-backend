@@ -282,7 +282,7 @@ export interface StorageLifecycleConfig {
 
 export interface StoredAudioFile {
     id: string;
-    conversationId: string;
+    recordingId: string;
     originalName: string;
     storageKey: string;
     url?: string; // Public URL if available

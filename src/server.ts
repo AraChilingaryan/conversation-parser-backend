@@ -7,7 +7,7 @@ import {healthRoutes} from './routes';
 import {errorHandler, notFoundHandler} from './middleware';
 import {logger} from './utils/logger.util';
 import {databaseService} from './services/database.service';
-import {conversationRoutes} from './routes/conversation.routes';
+import {recordingRoutes} from './routes/recording.routes';
 import {handleUploadError} from './middleware/upload.middleware';
 import {processingRoutes} from "./routes/processing.routes";
 import {userMetadataRoutes} from "./routes/user-metadata.routes";
@@ -44,7 +44,7 @@ app.use(express.urlencoded({extended: true, limit: '10mb'}));
 
 // Routes - SPECIFIC routes must come BEFORE general routes
 app.use('/health', healthRoutes);
-app.use('/api/v1/conversations', conversationRoutes);
+app.use('/api/v1/recordings', recordingRoutes);
 app.use('/api/v1/processing', processingRoutes);
 app.use('/api/v1/twilio', twilioRoutes);
 app.use('/api/v1/revenue-cat', revenuecatRoutes);

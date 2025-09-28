@@ -22,15 +22,14 @@ export class StorageService {
     /**
      * Upload audio file to Google Cloud Storage
      */
-    async uploadAudioFile(conversationId: string, audioFile: AudioFile): Promise<StorageUploadResult> {
+    async uploadAudioFile(recordingId: string, audioFile: AudioFile): Promise<StorageUploadResult> {
         try {
             const storage = databaseConfig.storage;
-            const bucket = storage.bucket("callrecorder-7c084.firebasestorage.app");
-            console.log("bucket", bucket.name)
+            const bucket = storage.bucket(process.env.FIREBASE_STORAGE_BUCKET);
 
             // Generate storage path
             const fileExtension = this.getFileExtension(audioFile.originalName, audioFile.mimeType);
-            const storageKey = `conversations/${conversationId}/audio/original${fileExtension}`;
+            const storageKey = `recordings/${recordingId}/audio/original${fileExtension}`;
 
             // Create file reference
             const file = bucket.file(storageKey);
@@ -40,7 +39,7 @@ export class StorageService {
                 metadata: {
                     contentType: audioFile.mimeType,
                     metadata: {
-                        conversationId,
+                        recordingId: recordingId,
                         originalName: audioFile.originalName,
                         uploadedAt: new Date().toISOString(),
                         fileSize: audioFile.size.toString(),
@@ -71,8 +70,8 @@ export class StorageService {
                         const publicUrl = `https://storage.googleapis.com/${bucket.name}/${storageKey}`;
 
                         const storedFile: StoredAudioFile = {
-                            id: `${conversationId}-original`,
-                            conversationId,
+                            id: `${recordingId}-original`,
+                            recordingId,
                             originalName: audioFile.originalName,
                             storageKey,
                             url: publicUrl,

@@ -266,7 +266,7 @@ export interface UploadConversationRequest {
 }
 
 export interface UploadConversationResponse {
-    conversationId: string;
+    recordingId: string;
     status: ConversationStatus;
     message: string;
     estimatedProcessingTime?: number; // in seconds

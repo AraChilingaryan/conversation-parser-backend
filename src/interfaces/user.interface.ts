@@ -318,11 +318,19 @@ export interface Recording {
     // todo add here the logic
     // tag: Tag;
 
-    // Metadata
+    // Metadata - flexible for both Twilio and uploads
     metadata: {
         twilioAccountSid: string;
         callDirection: string;
         parentCallSid?: string;
+
+        // Additional fields for uploaded files
+        originalFileName?: string;
+        fileSize?: number;
+        uploadedTitle?: string;
+        uploadedDescription?: string;
+        language?: string;
+        source: 'twilio' | 'upload'; // To distinguish the source
     };
 
     // Flags

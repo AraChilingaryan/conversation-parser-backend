@@ -1,10 +1,6 @@
 // src/routes/processing.routes.ts
-import { Router } from 'express';
-import {
-    triggerProcessing,
-    getProcessingProgress,
-    getProcessingStatus, processRecording, getRecordingProgress
-} from '../controllers/processing.controller';
+import {Router} from 'express';
+import { getRecordingProgress, processRecording } from '../controllers/processing.controller';
 
 const router = Router();
 
@@ -22,11 +18,4 @@ router.post('/recordings/:recordingId/process', processRecording);
  */
 router.get('/recordings/:recordingId/progress', getRecordingProgress);
 
-/**
- * @route GET /api/processing/status
- * @desc Get overall processing queue status
- * @access Admin
- */
-router.get('/status', getProcessingStatus);
-
-export { router as processingRoutes };
+export {router as processingRoutes};

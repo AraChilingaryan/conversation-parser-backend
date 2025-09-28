@@ -1,14 +1,14 @@
 // src/services/processing.service.ts
 
-import { speechToTextService } from './speech-to-text.service';
-import { databaseService } from './database.service';
-import { recordingRepository } from '../repositories/recording.repository';
-import { twilioIntegrationService } from './twilio-integration.service';
-import { logger } from '../utils/logger.util';
-import { v4 as uuidv4 } from 'uuid';
-import type { ConversationData, ConversationInsights, ConversationMetadata } from '../interfaces/conversation.interface';
-import type { Recording } from '../interfaces/user.interface';
-import type { AudioEncoding, SpeechRecognitionConfig } from '../interfaces/audio.interface';
+import {speechToTextService} from './speech-to-text.service';
+import {databaseService} from './database.service';
+import {recordingRepository} from '../repositories/recording.repository';
+import {twilioIntegrationService} from './twilio-integration.service';
+import {logger} from '../utils/logger.util';
+import {v4 as uuidv4} from 'uuid';
+import type {ConversationData, ConversationInsights, ConversationMetadata} from '../interfaces/conversation.interface';
+import type {Recording} from '../interfaces/user.interface';
+import type {AudioEncoding, SpeechRecognitionConfig} from '../interfaces/audio.interface';
 
 /**
  * Enhanced Processing Service with Recording Support
@@ -21,7 +21,8 @@ export class ProcessingService {
     private readonly ENABLE_ENHANCED_DEFAULT = false;
     private readonly ENABLE_DATA_LOGGING = true;
 
-    private constructor() {}
+    private constructor() {
+    }
 
     static getInstance(): ProcessingService {
         if (!ProcessingService.instance) {
@@ -80,7 +81,8 @@ export class ProcessingService {
 
             // Step 3: Process speech-to-text with authenticated Twilio URL
             logger.info(`Processing speech-to-text for recording: ${recordingId}`);
-            const speechResults = await this.processTwilioAudio(audioUrl, speechConfig);
+
+            const speechResults = await this.processAudio(audioUrl, speechConfig, recording.metadata.source);
 
             if (!speechResults.results || speechResults.results.length === 0) {
                 throw new Error('No speech content detected in audio file');
@@ -101,7 +103,7 @@ export class ProcessingService {
 
             // Step 5: Convert to conversation format
             logger.info(`Converting to conversation format: ${recordingId}`);
-            const { speakers, messages } = speechToTextService.convertToConversationFormat(
+            const {speakers, messages} = speechToTextService.convertToConversationFormat(
                 diarizationResult,
                 this.createConversationDataFromRecording(recording, conversationId)
             );
@@ -134,6 +136,7 @@ export class ProcessingService {
                 } : undefined
             };
 
+            // Step 8: Create conversation object with proper processing log
             const conversationData: ConversationData = {
                 conversationId,
                 recordingId, // Link back to recording
@@ -144,7 +147,7 @@ export class ProcessingService {
                 insights,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
-                processingLog: [ // TODO: Each stage should be logged as it happens with real timing:
+                processingLog: [
                     {
                         timestamp: new Date().toISOString(),
                         stage: 'diarization',
@@ -221,35 +224,26 @@ export class ProcessingService {
     }
 
     /**
-     * Process audio from Twilio URL with authentication
+     * Process audio from either Twilio or uploaded source
      */
-    private async processTwilioAudio(recordingUrl: string, config: SpeechRecognitionConfig) {
+    private async processAudio(recordingUrl: string, config: SpeechRecognitionConfig, source: 'twilio' | 'upload') {
+        if (source === 'upload') {
+            logger.info('Processing manually uploaded audio from GCS...');
+            return await speechToTextService.processAudioFile(recordingUrl, config);
+        }
+
+        // Handle Twilio audio processing
+        logger.info('Processing audio from Twilio...');
+
         // For Google Speech API, we need to handle Twilio URLs specially
         // Google Speech API expects gs:// URLs, but we have HTTPS URLs with auth
-
-        // Option 1: Try direct URL (may not work due to auth requirements)
-        // Option 2: Download and upload to GCS temporarily
-        // Option 3: Use a proxy/streaming approach
-
-        // For now, let's try the streaming approach by downloading the audio first
         logger.info('Downloading audio from Twilio for processing...');
 
         const audioBuffer = await twilioIntegrationService.downloadRecording(recordingUrl);
 
-        // Create a temporary GCS upload for processing
-        const tempFileName = `temp_processing_${Date.now()}.wav`;
-        const bucketName = process.env.FIREBASE_STORAGE_BUCKET || `${process.env.FIREBASE_PROJECT_ID}.appspot.com`;
-        const tempGcsPath = `gs://${bucketName}/temp/${tempFileName}`;
-
-        // Upload temporarily to GCS for processing
-        // Note: You'll need to implement uploadTempAudio in your storage service
-        // For now, we'll use the speech service directly with the buffer
-
-        // Alternative: Process the buffer directly if your speech service supports it
+        // Process the buffer directly if your speech service supports it
         // This is a placeholder - you may need to adapt based on your speech service implementation
-        const speechResults = await speechToTextService.processAudioBuffer(audioBuffer, config);
-
-        return speechResults;
+        return await speechToTextService.processAudioBuffer(audioBuffer, config);
     }
 
     /**
@@ -344,7 +338,7 @@ export class ProcessingService {
                 responseCount: 0,
                 statementCount: 0,
                 averageMessageLength: 0,
-                longestMessage: { messageId: '', length: 0 },
+                longestMessage: {messageId: '', length: 0},
                 conversationFlow: 'unknown',
                 speakingTimeDistribution: []
             },
@@ -445,7 +439,7 @@ export class ProcessingService {
             responseCount: 0,
             statementCount: 0,
             averageMessageLength: 0,
-            longestMessage: { messageId: '', length: 0 },
+            longestMessage: {messageId: '', length: 0},
             conversationFlow: 'unknown',
             speakingTimeDistribution: []
         };

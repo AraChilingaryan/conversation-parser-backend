@@ -1,18 +1,18 @@
 // src/controllers/processing.controller.ts
 
-import { Request, Response } from 'express';
-import { processingService } from '../services/processing.service';
-import { recordingRepository } from '../repositories/recording.repository';
-import { logger } from '../utils/logger.util';
-import { v4 as uuidv4 } from 'uuid';
-import type { APIResponse } from '../interfaces/api.interface';
+import {Request, Response} from 'express';
+import {processingService} from '../services/processing.service';
+import {recordingRepository} from '../repositories/recording.repository';
+import {logger} from '../utils/logger.util';
+import {v4 as uuidv4} from 'uuid';
+import type {APIResponse} from '../interfaces/api.interface';
 
 /**
  * Process recording into conversation (new endpoint for recording-based processing)
  */
 export const processRecording = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { recordingId } = req.params;
+        const {recordingId} = req.params;
 
         if (!recordingId) {
             res.status(400).json({
@@ -134,7 +134,7 @@ export const processRecording = async (req: Request, res: Response): Promise<voi
  */
 export const getRecordingProgress = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { recordingId } = req.params;
+        const {recordingId} = req.params;
 
         if (!recordingId) {
             res.status(400).json({
@@ -195,150 +195,6 @@ export const getRecordingProgress = async (req: Request, res: Response): Promise
             error: {
                 code: 'INTERNAL_SERVER_ERROR',
                 message: 'Failed to get recording progress',
-                timestamp: new Date().toISOString()
-            }
-        } as APIResponse);
-    }
-};
-
-/**
- * Legacy conversation processing endpoint (keep for backward compatibility)
- */
-export const triggerProcessing = async (req: Request, res: Response): Promise<void> => {
-    try {
-        const { conversationId } = req.params;
-        if (!conversationId) {
-            res.status(400).json({
-                success: false,
-                error: {
-                    code: 'MISSING_CONVERSATION_ID',
-                    message: 'Conversation ID is required',
-                    timestamp: new Date().toISOString()
-                }
-            } as APIResponse);
-            return;
-        }
-
-        // This is the legacy endpoint for existing uploaded conversations
-        // Keep the existing logic for backward compatibility
-        const result = await processingService.processConversation(conversationId);
-
-        res.json({
-            success: true,
-            data: {
-                conversationId,
-                message: 'Processing started successfully',
-                status: 'processing'
-            },
-            metadata: {
-                requestId: uuidv4(),
-                timestamp: new Date().toISOString(),
-                processingTime: 0,
-                version: '1.0.0'
-            }
-        } as APIResponse);
-
-    } catch (error) {
-        logger.error('Error triggering processing:', error);
-
-        res.status(500).json({
-            success: false,
-            error: {
-                code: 'INTERNAL_SERVER_ERROR',
-                message: 'Failed to trigger processing',
-                timestamp: new Date().toISOString()
-            }
-        } as APIResponse);
-    }
-};
-
-/**
- * Get processing progress for specific conversation (legacy)
- */
-export const getProcessingProgress = async (req: Request, res: Response): Promise<void> => {
-    try {
-        const { conversationId } = req.params;
-
-        if (!conversationId) {
-            res.status(400).json({
-                success: false,
-                error: {
-                    code: 'MISSING_CONVERSATION_ID',
-                    message: 'Conversation ID is required',
-                    timestamp: new Date().toISOString()
-                }
-            } as APIResponse);
-            return;
-        }
-
-        const progress = await processingService.getProcessingProgress(conversationId);
-
-        res.json({
-            success: true,
-            data: {
-                conversationId,
-                progress
-            },
-            metadata: {
-                requestId: uuidv4(),
-                timestamp: new Date().toISOString(),
-                processingTime: 0,
-                version: '1.0.0'
-            }
-        } as APIResponse);
-    } catch (error) {
-        logger.error('Error getting processing progress:', error);
-
-        if (error instanceof Error && error.message.includes('not found')) {
-            res.status(404).json({
-                success: false,
-                error: {
-                    code: 'CONVERSATION_NOT_FOUND',
-                    message: error.message,
-                    timestamp: new Date().toISOString()
-                }
-            } as APIResponse);
-            return;
-        }
-
-        res.status(500).json({
-            success: false,
-            error: {
-                code: 'INTERNAL_SERVER_ERROR',
-                message: 'Failed to get processing progress',
-                timestamp: new Date().toISOString()
-            }
-        } as APIResponse);
-    }
-};
-
-/**
- * Get processing queue status
- */
-export const getProcessingStatus = async (req: Request, res: Response): Promise<void> => {
-    try {
-        // Get statistics about current processing state
-        res.json({
-            success: true,
-            data: {
-                queueStatus: 'active',
-                message: 'Processing queue is active'
-            },
-            metadata: {
-                requestId: uuidv4(),
-                timestamp: new Date().toISOString(),
-                processingTime: 0,
-                version: '1.0.0'
-            }
-        } as APIResponse);
-    } catch (error) {
-        logger.error('Error getting processing status:', error);
-
-        res.status(500).json({
-            success: false,
-            error: {
-                code: 'INTERNAL_SERVER_ERROR',
-                message: 'Failed to get processing status',
                 timestamp: new Date().toISOString()
             }
         } as APIResponse);
